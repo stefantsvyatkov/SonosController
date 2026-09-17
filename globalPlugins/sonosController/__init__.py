@@ -31,6 +31,9 @@ CONFIG_SECTION = "sonosController"
 CONFIG_SPEC = {
     "selectedRoom": "string(default='')",
     "knownAddresses": "string(default='')",
+    # Only needed when FFmpeg is installed somewhere unusual; the add-on
+    # otherwise finds it on PATH or in the common install locations.
+    "ffmpegPath": "string(default='')",
 }
 # Registered at import time, before any profile reads the section.
 config.conf.spec[CONFIG_SECTION] = CONFIG_SPEC
@@ -61,13 +64,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.stop = threading.Event()
         self.dialogOpen = False
         self.localFiles = LocalFiles()
-        self.relay = Relay()
         self.transferCancel = threading.Event()
         self.worker = None
         self._inputHookRegistered = False
         settings = config.conf[CONFIG_SECTION]
         # Older installations do not have the address cache yet.
         self.selected = settings.get("selectedRoom", "")
+        self.relay = Relay(settings.get("ffmpegPath", ""))
         self.knownAddresses = [address for address in settings.get("knownAddresses", "").split(",")
                                if address]
         if globalVars.appArgs.secure:

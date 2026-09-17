@@ -192,30 +192,55 @@ class FixedDefects(EmulatorTest):
         self.assertIn("percent", heard[-1])
         self.assertIn("transferred", session.press("kb:space")[-1])
 
-    def test_alarm_volume_slider_follows_the_arrows(self):
+    def numeric_field(self, name):
+        """Walk one numeric alarm field and report what each key did."""
         session = self.layer()
         session.press("kb:a")
         seen = {}
 
         def inspect(dialog):
-            volume = dialog.focus_on("Volume (%)")
-            seen["role"] = volume.role
-            seen["start"] = volume.GetValue()
+            control = dialog.focus_on(name)
+            seen["role"] = control.role
+            seen["start"] = self.number(control)
             dialog.press("up")
-            seen["up"] = volume.GetValue()
+            seen["up"] = self.number(control)
             dialog.press("down")
-            dialog.press("down")
-            seen["down"] = volume.GetValue()
+            seen["down"] = self.number(control)
             dialog.press("pageup")
-            seen["pageup"] = volume.GetValue()
+            seen["pageup"] = self.number(control)
+            dialog.press("pagedown")
+            seen["pagedown"] = self.number(control)
             return False
 
         session.on_dialog(inspect)
         session.press("kb:enter")
+        return seen
+
+    @staticmethod
+    def number(control):
+        value = getattr(control, "GetValue", None)
+        return value() if value else int(control.GetStringSelection())
+
+    def test_alarm_volume_slider_follows_the_arrows(self):
+        seen = self.numeric_field("Volume (%)")
         self.assertEqual(seen["role"], "slider", "it should still be an ordinary slider")
         self.assertEqual(seen["up"], seen["start"] + 1, "Up must raise the volume")
-        self.assertEqual(seen["down"], seen["start"] - 1, "Down must lower it")
-        self.assertGreater(seen["pageup"], seen["down"], "Page Up must raise it too")
+        self.assertEqual(seen["down"], seen["start"], "Down must lower it again")
+
+    def test_alarm_hour_dropdown_counts_up_on_up(self):
+        seen = self.numeric_field("Hour")
+        self.assertEqual(seen["role"], "combo box", "it should still be a dropdown")
+        self.assertEqual(seen["up"], seen["start"] + 1, "Up must move to a later hour")
+        self.assertEqual(seen["down"], seen["start"])
+
+    def test_page_keys_move_five_in_the_arrows_direction(self):
+        for name in ("Volume (%)", "Hour", "Minute"):
+            with self.subTest(field=name):
+                seen = self.numeric_field(name)
+                self.assertEqual(seen["pageup"], seen["start"] + 5,
+                                 "Page Up must add five, like five presses of Up")
+                self.assertEqual(seen["pagedown"], seen["start"],
+                                 "Page Down must undo it")
 
     def test_sleep_timer_rows_wrap(self):
         session = self.layer()
@@ -234,7 +259,8 @@ class FixedDefects(EmulatorTest):
         self.assertLess(time.monotonic() - start, 2.0,
                         "unload must not wait out a slow speaker request")
 
-    def test_alarm_dialog_announces_fields_that_appear(self):
+    def test_alarm_dialog_stays_quiet_when_fields_appear(self):
+        """Showing a field is not worth announcing; NVDA reads it on focus."""
         session = self.layer()
         session.press("kb:a")
 
@@ -242,12 +268,14 @@ class FixedDefects(EmulatorTest):
             repeat = dialog.focus_on("Repeat")
             while repeat.GetStringSelection() != "Selected days":
                 dialog.press("down")
+            self.assertIn("Days", [c.GetName() for c in dialog.tab_order()])
             return False
 
         session.on_dialog(inspect)
+        before = len(session.speech)
         session.press("kb:enter")
-        self.assertTrue(session.speech.said("Added: Days"),
-                        f"no announcement; heard {session.speech[-3:]}")
+        self.assertEqual(session.speech[before:], [],
+                         f"the dialog spoke: {session.speech[before:]}")
 
 
 class Cost(EmulatorTest):

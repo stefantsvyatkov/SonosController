@@ -201,6 +201,14 @@ class Window:
         """What the underlying Windows control does with the key."""
         return False
 
+    def simulate_key(self, code):
+        """Apply a wx key code the way the native control would.
+
+        Controls that correct their key directions hand the wanted key back to
+        the native window; the emulator offers the same entry point.
+        """
+        return self.native_key(NAMES.get(code, ""))
+
 
 class Panel(Window):
     role = "pane"
@@ -245,8 +253,10 @@ class Choice(Window):
         return self.GetStringSelection()
 
     def native_key(self, name):
-        # Win32 combo box: Down moves to the next item, Up to the previous.
-        if name not in ("up", "down", "home", "end"):
+        # Win32 combo box: Down moves to the next item, Up to the previous,
+        # and the page keys move a screenful at a time.
+        steps = {"up": -1, "down": 1, "pageup": -10, "pagedown": 10}
+        if name not in steps and name not in ("home", "end"):
             return False
         if not self.choices:
             return True
@@ -255,8 +265,7 @@ class Choice(Window):
         elif name == "end":
             new = len(self.choices) - 1
         else:
-            step = 1 if name == "down" else -1
-            new = max(0, min(len(self.choices) - 1, max(self.selection, 0) + step))
+            new = max(0, min(len(self.choices) - 1, max(self.selection, 0) + steps[name]))
         if new != self.selection:
             self.selection = new
             self.fire(EVT_CHOICE)
@@ -379,14 +388,11 @@ class Slider(Window):
     def value_text(self):
         return str(self.value)
 
-    def simulate_key(self, code):
-        """Apply a wx key code the way the native trackbar would.
+    def SetPageSize(self, size):
+        self.page = max(1, int(size))
 
-        The add-on corrects the inverted arrows by handing the control the key
-        it already reads as the wanted direction, so the emulator offers the
-        same entry point the real control does.
-        """
-        return self.native_key(NAMES.get(code, ""))
+    def GetPageSize(self):
+        return self.page
 
     def native_key(self, name):
         # Win32 trackbar: VK_LEFT/VK_UP decrement and VK_RIGHT/VK_DOWN

@@ -1,15 +1,19 @@
-"""Controls that behave the way a keyboard user expects on Windows.
+"""Controls whose arrow keys mean what a user expects.
 
-The Win32 trackbar behind ``wx.Slider`` decrements on Up and Page Up and
-increments on Down and Page Down, so a horizontal slider runs backwards for
-anyone driving it from the keyboard.
+Two Windows controls disagree with "Up means more":
 
-``Slider`` below stays an ordinary slider - same look, same mouse behaviour,
-same value NVDA reads - and only turns the vertical keys the right way round.
-It does that by handing the native control the key it already treats as the
-wanted direction, rather than setting the value from Python: a programmatic
-``SetValue`` does not raise the accessibility value-change event, so the
-correction would otherwise be silent for a screen reader.
+* A horizontal trackbar (``wx.Slider``) decrements on Up and Page Up.
+* A list control (``wx.Choice``) walks towards the top of the list on Up, so a
+  list of numbers counts *down* when the user presses Up.
+
+Both are corrected the same way: the key is swapped and handed back to the
+native control, which then moves itself and raises the accessibility events a
+screen reader listens for.  Setting the value from Python instead would move
+the control silently - a programmatic ``SetValue`` raises no value-change
+event, so NVDA would say nothing.
+
+Page Up and Page Down move by :data:`PAGE_STEP` in the same direction as the
+arrows, so the two pairs never disagree.
 """
 
 import ctypes
@@ -22,6 +26,9 @@ except AttributeError:  # not Windows; only reachable from the test harness
     _user32 = None
 
 WM_KEYDOWN, WM_KEYUP = 0x0100, 0x0101
+
+#: How far Page Up and Page Down move, in steps of the control's own unit.
+PAGE_STEP = 5
 
 #: The wx key each inverted key should behave as.
 SWAP = {
@@ -41,29 +48,42 @@ VIRTUAL_KEYS = {
     wx.WXK_PAGEUP: 0x21, wx.WXK_PAGEDOWN: 0x22,
 }
 
+PAGE_KEYS = (wx.WXK_PAGEUP, wx.WXK_PAGEDOWN,
+             wx.WXK_NUMPAD_PAGEUP, wx.WXK_NUMPAD_PAGEDOWN)
 
-class Slider(wx.Slider):
-    """A slider whose Up and Page Up raise the value, as users expect."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class UpMeansMore:
+    """Swap the vertical keys of a control that counts the wrong way.
+
+    Mix in before the wx class and call :meth:`correctVerticalKeys` once the
+    control exists.
+    """
+
+    def correctVerticalKeys(self):
         self._forwarding = False
         self.Bind(wx.EVT_KEY_DOWN, self._onKey)
 
     def _onKey(self, event):
         # The forwarded key arrives here again; let it through untouched.
-        if self._forwarding:
+        if getattr(self, "_forwarding", False):
             event.Skip()
             return
-        wanted = SWAP.get(event.GetKeyCode())
+        code = event.GetKeyCode()
+        wanted = SWAP.get(code)
         if wanted is None or event.HasAnyModifiers():
             event.Skip()
             return
         self._forwarding = True
         try:
-            self._forward(wanted)
+            self._page(wanted) if code in PAGE_KEYS else self._forward(wanted)
         finally:
             self._forwarding = False
+
+    def _page(self, key):
+        """Move a page, which this add-on defines as PAGE_STEP single steps."""
+        step = wx.WXK_DOWN if key == wx.WXK_PAGEDOWN else wx.WXK_UP
+        for _ in range(PAGE_STEP):
+            self._forward(step)
 
     def _forward(self, key):
         """Let the native control apply ``key`` and report it as it normally would."""
@@ -75,3 +95,36 @@ class Slider(wx.Slider):
         handle = self.GetHandle()
         _user32.SendMessageW(handle, WM_KEYDOWN, code, 0)
         _user32.SendMessageW(handle, WM_KEYUP, code, 0)
+
+
+class Slider(UpMeansMore, wx.Slider):
+    """A slider whose Up and Page Up raise the value."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # One native page event instead of five line events keeps the speech to
+        # a single announcement.
+        self.SetPageSize(PAGE_STEP)
+        self.correctVerticalKeys()
+
+    def _page(self, key):
+        # The trackbar has a real page size, so let it do the whole move.
+        self._forward(key)
+
+
+class NumberChoice(UpMeansMore, wx.Choice):
+    """A dropdown of numbers where Up counts up.
+
+    Ordinary lists keep their usual behaviour; this is only for fields whose
+    entries are quantities, such as an hour or a minute, where walking towards
+    the top of the list reads as lowering the value.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.correctVerticalKeys()
+
+
+def numbers(parent, count, start=0):
+    """A zero-padded number dropdown, for example 00 to 23."""
+    return NumberChoice(parent, choices=[f"{i:02d}" for i in range(start, start + count)])

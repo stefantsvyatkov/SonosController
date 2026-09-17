@@ -101,6 +101,8 @@ class Settings:
         if not self.items:
             raise RuntimeError(_("No supported settings available."))
         self.index = 0
+        # The room and model are only worth repeating when they change.
+        self._spokenRoom = None
 
     @staticmethod
     def gates(room, model):
@@ -133,7 +135,13 @@ class Settings:
         room, option = self.items[self.index]
         return self.values.get((room.uid, option.key))
 
-    def describe(self, context=True):
+    def describe(self, context=None):
+        """Describe the current setting.
+
+        ``context`` names the room and model.  Left unset it is announced only
+        when the selection moved to a different room, so walking through one
+        speaker's settings does not repeat its name on every key press.
+        """
         room, option = self.items[self.index]
         value = self.value()
         if value is None:
@@ -151,7 +159,12 @@ class Settings:
                 text = f"{abs(value)} {side}"
         else:
             text = str(value)
-        prefix = f"{room.player_name}, {self.models[room.uid]}, " if context else ""
+        if context is None:
+            context = room.uid != self._spokenRoom
+        prefix = ""
+        if context:
+            self._spokenRoom = room.uid
+            prefix = f"{room.player_name}, {self.models[room.uid]}, "
         return f"{prefix}{option.label}, {text}"
 
     def move(self, delta):

@@ -36,10 +36,10 @@ def _verify_archive(output):
         "globalPlugins/sonosController/bin/",
         "thirdParty/ffmpeg/",
     )
-    forbidden_files = {
-        "globalPlugins/sonosController/relay.py",
-        "globalPlugins/sonosController/relay_urls.py",
-    }
+    # relay.py and relay_urls.py are part of the public package now: they are
+    # pure Python and only do anything when the user already has FFmpeg.  What
+    # must never ship is an executable, which the suffix check below covers.
+    forbidden_files = set()
     with zipfile.ZipFile(output) as archive:
         names = archive.namelist()
         if len(names) != len(set(names)):

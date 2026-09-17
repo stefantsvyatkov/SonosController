@@ -2,7 +2,7 @@
 
 import wx
 
-from .controls import Slider
+from .controls import Slider, numbers
 from .i18n import _
 from .menus import alarm_mode_supported, parse_alarm
 from .util import valid_url
@@ -54,10 +54,6 @@ class FieldGrid:
                 window.Show(visible)
         return True
 
-    def label_of(self, key):
-        caption, control = self.rows[key]
-        return caption.GetLabel() if caption is not None else control.GetLabel()
-
 
 class AlarmDialog(wx.Dialog):
     RECURRENCES = ("DAILY", "ONCE", "WEEKDAYS", "WEEKENDS", "CUSTOM")
@@ -69,7 +65,6 @@ class AlarmDialog(wx.Dialog):
         super().__init__(parent, title=_("Sonos alarm"),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.context, self.result = context, None
-        self._built = False
         alarm = context["alarm"]
         self.panel = panel = wx.Panel(self)
         self.grid = grid = FieldGrid(panel)
@@ -79,10 +74,8 @@ class AlarmDialog(wx.Dialog):
                      _("Thursday"), _("Friday"), _("Saturday")]
 
         start = alarm.start_time if alarm else None
-        hours = grid.add("timeHour", _("Hour"),
-                         lambda: wx.Choice(panel, choices=[f"{i:02d}" for i in range(24)]))
-        minutes = grid.add("timeMinute", _("Minute"),
-                           lambda: wx.Choice(panel, choices=[f"{i:02d}" for i in range(60)]))
+        hours = grid.add("timeHour", _("Hour"), lambda: numbers(panel, 24))
+        minutes = grid.add("timeMinute", _("Minute"), lambda: numbers(panel, 60))
         hours.SetSelection(start.hour if start else 7)
         minutes.SetSelection(start.minute if start else 0)
 
@@ -136,9 +129,9 @@ class AlarmDialog(wx.Dialog):
                             lambda: wx.Choice(panel, choices=[_("Unlimited"), _("Custom")]))
         duration.SetSelection(1 if alarm and alarm.duration else 0)
         durationHours = grid.add("durationHour", _("Duration hour"),
-                                 lambda: wx.Choice(panel, choices=[f"{i:02d}" for i in range(24)]))
+                                 lambda: numbers(panel, 24))
         durationMinutes = grid.add("durationMinute", _("Duration minute"),
-                                   lambda: wx.Choice(panel, choices=[f"{i:02d}" for i in range(60)]))
+                                   lambda: numbers(panel, 60))
         durationHours.SetSelection(alarm.duration.hour if alarm and alarm.duration else 1)
         durationMinutes.SetSelection(alarm.duration.minute if alarm and alarm.duration else 0)
 
@@ -158,7 +151,6 @@ class AlarmDialog(wx.Dialog):
             control.Bind(wx.EVT_CHOICE, self.updateFields)
         self.Bind(wx.EVT_BUTTON, self.onSave, id=wx.ID_OK)
         self.updateFields()
-        self._built = True
         self.SetMinSize((520, self.GetSize().height))
         self.CentreOnParent()
         self.controls["timeHour"].SetFocus()
@@ -175,17 +167,11 @@ class AlarmDialog(wx.Dialog):
             "durationHour": custom_duration,
             "durationMinute": custom_duration,
         }
-        appeared = [key for key, visible in wanted.items()
-                    if self.grid.show(key, visible) and visible]
+        for key, visible in wanted.items():
+            self.grid.show(key, visible)
         self.panel.Layout()
         self.Fit()
         self.Layout()
-        if appeared and self._built:
-            # A field that appears silently is easy to miss with a screen
-            # reader, so name what was added.
-            import ui
-            names = ", ".join(self.grid.label_of(key) for key in appeared)
-            ui.message(_("Added: {fields}").format(fields=names))
 
     def onSave(self, event):
         c = self.controls
@@ -250,12 +236,7 @@ class LocalFilesDialog(wx.Dialog):
         self.kind.SetFocus()
 
     def onKind(self, event):
-        folder = self.kind.GetSelection() == 1
-        if self.recursive.IsEnabled() != folder:
-            self.recursive.Enable(folder)
-            import ui
-            ui.message(_("Include subfolders available") if folder
-                       else _("Include subfolders unavailable"))
+        self.recursive.Enable(self.kind.GetSelection() == 1)
 
     def browse(self, event):
         from .localfiles import MIME

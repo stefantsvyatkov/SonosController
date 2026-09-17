@@ -19,7 +19,7 @@ added later without touching the code.
 | `tools/` | build, vendoring, and the NVDA emulator |
 | `tools/harness/` | headless NVDA + simulated Sonos household ([readme](tools/harness/README.md)) |
 | `research/` | hardware test notes, radio surveys, prototypes; not shipped |
-| `experimental/ffmpeg-relay/` | optional transcoding build; not shipped |
+| `experimental/ffmpeg-relay/` | the same add-on with an FFmpeg bundled in; not shipped |
 | `build/` | generated packages and the pip staging area; not committed |
 | `site_scons/`, `sconstruct`, `templateDocs/` | retained upstream add-on template; unused by this build |
 
@@ -51,21 +51,24 @@ counts speaker requests, which is how the responsiveness limits in
 `tests/test_sonos_emulator.py` are set. `Session(network="real")` points the
 same harness at speakers on the LAN.
 
-## The FFmpeg variant
+## FFmpeg
 
-`experimental/ffmpeg-relay/` builds a personal variant that transcodes streams
-Sonos cannot decode. It is not part of the public package because it bundles
-an FFmpeg executable.
+The public package converts streams a speaker refuses whenever the machine
+already has FFmpeg. `ffmpeg.py` finds it (configured path, PATH, the usual
+installer locations) and `relayhooks.py` decides whether to use it; with no
+FFmpeg present the add-on plays URLs directly, as it always did. Nothing is
+bundled and nothing is downloaded, so the package stays free of executables.
+
+`experimental/ffmpeg-relay/` builds a personal variant for a machine without
+FFmpeg installed:
 
 ```bash
 python experimental/ffmpeg-relay/tools/build.py
 ```
 
-The add-on exposes exactly one extension point for it,
-`globalPlugins/sonosController/relayhooks.py`. The public build ships a no-op
-version that plays URLs directly; the experimental build replaces that single
-file. Nothing else differs, so refactoring the layer cannot silently break the
-variant.
+That package is the public source byte-for-byte plus one added file, the
+FFmpeg executable, which `ffmpeg.bundled_path()` picks up. Because the code
+does not differ, refactoring cannot silently break the variant.
 
 ## Installation for development
 

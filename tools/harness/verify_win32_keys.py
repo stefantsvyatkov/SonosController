@@ -5,8 +5,11 @@ Two things are measured here:
 1. That a stock horizontal ``wx.Slider`` really does move the wrong way under
    the arrow keys, which is what the emulator models and what made the alarm
    dialog's volume field run backwards.
-2. That ``controls.Slider``, the add-on's replacement, moves the right way
-   while still being an ordinary slider.
+2. That a stock ``wx.Choice`` of numbers counts down when the user presses Up,
+   which is why the alarm's hour and minute felt backwards.
+3. That the add-on's corrected ``Slider`` and ``NumberChoice`` move the right
+   way, five at a time on the page keys, while staying an ordinary slider and
+   an ordinary dropdown.
 
 Key messages go *directly to each control's window handle* and the windows are
 off-screen and never activated, so a running screen reader and the user's
@@ -32,11 +35,7 @@ ENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
 
 def handles(window):
-    """The control's own window plus any child windows it is built from.
-
-    wx.SpinCtrl on Windows is an edit control paired with an up-down control,
-    so a message sent only to the outer handle is ignored.
-    """
+    """The control's own window plus any child windows it is built from."""
     found = [window.GetHandle()]
 
     def collect(child, _param):
@@ -65,7 +64,6 @@ def main():
 
     slider = wx.Slider(panel, value=50, minValue=0, maxValue=100,
                        style=wx.SL_HORIZONTAL | wx.SL_LABELS)
-    spin = wx.SpinCtrl(panel, min=0, max=100, initial=50)
     choice = wx.Choice(panel, choices=[f"{i:02d}" for i in range(24)])
     choice.SetSelection(7)
 
@@ -81,21 +79,6 @@ def main():
         arrow = "increases" if after > before else "decreases" if after < before else "no change"
         print(f"  {key:<9} {before:>3} -> {after:>3}   {arrow}")
         results.append((key, after - before))
-
-    print()
-    print("wx.SpinCtrl, starting at 50")
-    moved = False
-    for key in ("up", "down"):
-        before = spin.GetValue()
-        tap(spin, key)
-        after = spin.GetValue()
-        moved = moved or after != before
-        arrow = "increases" if after > before else "decreases" if after < before else "no change"
-        print(f"  {key:<9} {before:>3} -> {after:>3}   {arrow}")
-    if not moved:
-        print("  (inconclusive: the spin control only reacts to keys routed")
-        print("   through its edit buddy, which posted messages do not reach.")
-        print("   Confirm this one by hand in a visible dialog.)")
 
     print()
     print("wx.Choice of 00..23, starting at index 7")
@@ -122,50 +105,56 @@ def main():
         print("  control is inverted rather than merely inconsistent.")
 
     frame.Destroy()
-    fixed = verify_fixed_slider()
+    fixed = verify_corrected_controls()
     app.Destroy()
     return 0 if inverted and fixed else 1
 
 
-
-
-def verify_fixed_slider():
-    """Drive the add-on's own Slider to prove the correction works for real."""
+def verify_corrected_controls():
+    """Drive the add-on's own controls to prove the correction works for real."""
     import sys
     sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "tests"))
     from support import load
 
     controls = load("controls")
 
-    app = wx.App.Get() or wx.App()
-    frame = wx.Frame(None, title="fixed slider probe", pos=(-4000, -4000),
+    frame = wx.Frame(None, title="fixed controls probe", pos=(-4000, -4000),
                      size=(300, 120),
                      style=wx.FRAME_TOOL_WINDOW | wx.FRAME_NO_TASKBAR | wx.BORDER_NONE)
     panel = wx.Panel(frame)
     slider = controls.Slider(panel, value=50, minValue=0, maxValue=100,
                              style=wx.SL_HORIZONTAL | wx.SL_LABELS)
+    hours = controls.numbers(panel, 24)
+    hours.SetSelection(7)
     frame.ShowWithoutActivating()
-    slider.SetFocus()
     wx.SafeYield()
 
     print()
-    print("the add-on's controls.Slider, starting at 50")
-    results = {}
-    for key in ("up", "down", "pageup", "pagedown", "left", "right"):
-        before = slider_position(slider)
-        tap(slider, key)
-        wx.SafeYield()
-        after = slider_position(slider)
-        arrow = "increases" if after > before else "decreases" if after < before else "no change"
-        print(f"  {key:<9} {before:>3} -> {after:>3}   {arrow}")
-        results[key] = after - before
+    print(f"the add-on's controls, page step {controls.PAGE_STEP}")
+    ok = True
+    for name, control, read, start in (
+            ("Slider", slider, lambda: slider_position(slider), 50),
+            ("NumberChoice", hours, hours.GetSelection, 7)):
+        print(f"  {name}, starting at {start}")
+        moves = {}
+        for key in ("up", "down", "pageup", "pagedown"):
+            control.SetFocus()
+            wx.SafeYield()
+            before = read()
+            tap(control, key)
+            wx.SafeYield()
+            after = read()
+            moves[key] = after - before
+            print(f"    {key:<9} {before:>3} -> {after:>3}   {after - before:+d}")
+        expected = {"up": 1, "down": -1,
+                    "pageup": controls.PAGE_STEP, "pagedown": -controls.PAGE_STEP}
+        if moves != expected:
+            ok = False
+            print(f"    UNEXPECTED: wanted {expected}, got {moves}")
 
-    ok = (results["up"] > 0 and results["down"] < 0
-          and results["pageup"] > 0 and results["pagedown"] < 0
-          and results["right"] > 0 and results["left"] < 0)
     print()
-    print("  the corrected slider raises on Up and Page Up" if ok
-          else "  THE CORRECTION IS NOT WORKING on the real control")
+    print("  Up adds and Page Up adds five, on both controls" if ok
+          else "  THE CORRECTION IS NOT WORKING on the real controls")
 
     frame.Destroy()
     return ok
