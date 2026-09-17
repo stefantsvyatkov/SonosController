@@ -23,6 +23,7 @@ KEYS = {
     "kb:n": "newAlarm", "kb:delete": "deleteAlarm",
     "kb:control+shift+leftArrow": "seekBack",
     "kb:control+shift+rightArrow": "seekForward",
+    "kb:pageUp": "pageUp", "kb:pageDown": "pageDown",
 }
 
 # Actions that only make sense inside a mode, so the main layer ignores them.
@@ -60,28 +61,32 @@ class Mode:
 
 
 MENU_MOVES = {"up": "menuUp", "down": "menuDown"}
-VOLUME = frozenset({"up", "down"})
+MENU_PAGES = {"pageUp": "menuPageUp", "pageDown": "menuPageDown"}
+SETTING_PAGES = {"pageUp": "settingsPageUp", "pageDown": "settingsPageDown"}
+#: Actions that change the volume, and keep doing so inside a room mode.
+VOLUME = frozenset({"up", "down", "pageUp", "pageDown"})
 
 MODES = {
     "favorites": Mode(
         start="menuFavoritesStart", shortcut="kb:f",
-        actions={**MENU_MOVES, "applyGroup": "menuEnter"}),
+        actions={**MENU_MOVES, **MENU_PAGES, "applyGroup": "menuEnter"}),
     "timer": Mode(
         start="menuTimerStart", shortcut="kb:s",
-        actions={**MENU_MOVES, "left": "menuLeft", "right": "menuRight",
+        actions={**MENU_MOVES, **MENU_PAGES, "left": "menuLeft", "right": "menuRight",
                  "applyGroup": "menuEnter"}),
     "alarms": Mode(
         start="menuAlarmsStart", shortcut="kb:a",
-        actions={**MENU_MOVES, "playPause": "menuSpace", "applyGroup": "menuEnter",
+        actions={**MENU_MOVES, **MENU_PAGES, "playPause": "menuSpace",
+                 "applyGroup": "menuEnter",
                  "newAlarm": "menuNew", "deleteAlarm": "menuDelete"}),
     "settings": Mode(
         start="settingsStart", shortcut="kb:control+s",
         actions={"up": "settingsUp", "down": "settingsDown",
-                 "left": "settingsLeft", "right": "settingsRight"}),
+                 "left": "settingsLeft", "right": "settingsRight", **SETTING_PAGES}),
     "playbackSettings": Mode(
         start="playbackSettingsStart", shortcut="kb:control+p",
         actions={"up": "settingsUp", "down": "settingsDown",
-                 "left": "settingsLeft", "right": "settingsRight"}),
+                 "left": "settingsLeft", "right": "settingsRight", **SETTING_PAGES}),
     # Room selection uses Left and Right, so Up and Down keep adjusting the
     # volume exactly as they do in the main layer instead of dropping the mode.
     "group": Mode(
@@ -93,6 +98,10 @@ MODES = {
         actions={"left": "transferLeft", "right": "transferRight",
                  "playPause": "transferCommit", "applyGroup": "transferCommit"}),
 }
+
+#: One place defines what a page is worth; see util.PAGE_STEP.
+#: Page Up and Page Down always move a value five steps in the direction the
+#: arrow that raises it would take, wherever a value can be stepped at all.
 
 #: Modes whose worker state is a menu object.
 MENU_MODES = ("favorites", "timer", "alarms")

@@ -15,6 +15,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness import Session
 from harness.session import default_household
@@ -276,6 +277,76 @@ class FixedDefects(EmulatorTest):
         session.press("kb:enter")
         self.assertEqual(session.speech[before:], [],
                          f"the dialog spoke: {session.speech[before:]}")
+
+
+class PageKeys(EmulatorTest):
+    """Page Up and Page Down move five, in the arrows' direction, everywhere."""
+
+    def test_main_layer_volume(self):
+        session = self.layer()
+        start = int(session.press("kb:upArrow")[-1].split()[0])
+        self.assertEqual(session.press("kb:pageUp")[-1], f"{start + 5} percent")
+        self.assertEqual(session.press("kb:pageDown")[-1], f"{start} percent")
+
+    def test_volume_still_pages_inside_group_and_transfer(self):
+        for key, mode in (("kb:g", "group"), ("kb:t", "transfer")):
+            with self.subTest(mode=mode):
+                session = self.layer()
+                session.select_room("Living Room")
+                session.press(key)
+                before = int(session.press("kb:upArrow")[-1].split()[0])
+                heard = session.press("kb:pageUp")[-1]
+                self.assertEqual(heard, f"{before + 5} percent")
+                self.assertEqual(session.mode, mode, "paging must not drop the mode")
+
+    def test_speaker_settings_value(self):
+        session = self.layer()
+        session.press("kb:control+s")
+        session.press("kb:rightArrow")            # Bass, 1
+        self.assertEqual(session.press("kb:pageUp")[-1], "Bass, 6")
+        self.assertEqual(session.press("kb:pageDown")[-1], "Bass, 1")
+
+    def test_sleep_timer_presets_and_custom_row(self):
+        session = self.layer()
+        session.press("kb:s")
+        session.press("kb:rightArrow")            # 5 minutes
+        self.assertEqual(session.press("kb:pageUp")[-1], "30 minutes")
+        session.press("kb:downArrow")             # the Custom row
+        heard = session.press("kb:pageUp")[-1]
+        self.assertTrue(heard.endswith("minutes"), heard)
+
+    def test_lists_move_five_entries(self):
+        house = default_household()
+        for index in range(8):
+            house.add_favorite(f"Station {index}", f"x-sonosapi-stream:s{index}")
+        session = self.layer(household=house)
+        session.press("kb:f")
+        self.assertIn("1 of 10", session.speech[-1])
+        self.assertIn("6 of 10", session.press("kb:pageDown")[-1])
+        self.assertIn("1 of 10", session.press("kb:pageUp")[-1])
+
+    def test_a_page_is_five_everywhere(self):
+        """The step lives in one place, so nothing can drift."""
+        from support import load
+        self.assertEqual(load("util").PAGE_STEP, 5)
+        self.assertEqual(load("backend").VOLUME_STEPS["pageUp"], 5)
+        self.assertEqual(load("backend").VOLUME_STEPS["pageDown"], -5)
+
+
+class SpeakerNaming(EmulatorTest):
+    def test_a_room_named_after_its_model_is_said_once(self):
+        house = default_household()
+        house.find("Office").player_name = "Move 2"    # a Sonos Move 2
+        session = self.layer(household=house)
+        session.select_room("Move 2")
+        heard = session.press("kb:control+s")[-1]
+        self.assertIn("Move 2, Bass", heard)
+        self.assertNotIn("Sonos Move 2", heard)
+
+    def test_an_unrelated_room_name_still_gets_the_model(self):
+        session = self.layer()
+        heard = session.press("kb:control+s")[-1]
+        self.assertIn("Sonos Era 100", heard)
 
 
 class Cost(EmulatorTest):

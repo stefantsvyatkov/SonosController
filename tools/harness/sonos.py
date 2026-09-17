@@ -26,12 +26,12 @@ SETTING_KEYS = {
 MODELS = {
     "Sonos Era 100": {
         "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "balance", "trueplay"],
+                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "trueplay"],
         "flags": {},
     },
     "Sonos Arc": {
         "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "night_mode", "dialog_mode", "audio_delay",
+                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "night_mode", "dialog_mode", "audio_delay",
                      "surround_enabled", "surround_full_volume_enabled",
                      "surround_volume_tv", "surround_volume_music",
                      "sub_enabled", "sub_gain"],
@@ -40,17 +40,17 @@ MODELS = {
     },
     "Sonos Move 2": {
         "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "balance"],
+                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance"],
         "flags": {"battery": True},
     },
     "Sonos Amp": {
         "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "balance", "sub_enabled", "sub_gain", "sub_crossover"],
+                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "sub_enabled", "sub_gain", "sub_crossover"],
         "flags": {"has_subwoofer": True},
     },
     "Sonos Port": {
         "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "balance", "fixed_volume"],
+                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "fixed_volume"],
         "flags": {"supports_fixed_volume": True},
     },
 }

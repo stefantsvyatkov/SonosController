@@ -20,15 +20,14 @@ import ctypes
 
 import wx
 
+from .util import PAGE_STEP
+
 try:
     _user32 = ctypes.windll.user32
 except AttributeError:  # not Windows; only reachable from the test harness
     _user32 = None
 
 WM_KEYDOWN, WM_KEYUP = 0x0100, 0x0101
-
-#: How far Page Up and Page Down move, in steps of the control's own unit.
-PAGE_STEP = 5
 
 #: The wx key each inverted key should behave as.
 SWAP = {

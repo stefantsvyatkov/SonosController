@@ -2,7 +2,10 @@
 
 from .i18n import _
 from .media import describe, seconds
-from .util import timestamp
+from .util import PAGE_STEP, timestamp
+
+#: How much each volume key changes the group volume.
+VOLUME_STEPS = {"up": 1, "down": -1, "pageUp": PAGE_STEP, "pageDown": -PAGE_STEP}
 
 #: Sonos returns these when a transport command does not apply right now.
 REJECTED_CODES = ("701", "710", "711")
@@ -131,8 +134,8 @@ class Controller:
                         report += _(", power source {source}").format(source=power)
                     reports.append(report)
             return "; ".join(reports) or _("Battery not available.")
-        if action in ("up", "down"):
-            volume = group.set_relative_volume(1 if action == "up" else -1)
+        if action in VOLUME_STEPS:
+            volume = group.set_relative_volume(VOLUME_STEPS[action])
             return _("{volume} percent").format(volume=volume)
         if action == "mute":
             group.mute = not group.mute

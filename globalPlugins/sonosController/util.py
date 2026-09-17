@@ -2,6 +2,10 @@
 
 from urllib.parse import urlsplit
 
+#: How far Page Up and Page Down move any value the arrows step by one.
+#: Volume is in percent, so this is five percentage points there.
+PAGE_STEP = 5
+
 
 def valid_url(text):
     """True for a plain HTTP or HTTPS address with no embedded credentials."""

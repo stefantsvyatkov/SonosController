@@ -47,6 +47,25 @@ OPTIONS = (
 UNSUPPORTED_CODES = ("401", "402", "501", "600", "601", "602")
 
 
+def room_and_model(name, model):
+    """Name the speaker once when the room is already called after its model.
+
+    A Move 2 is usually the room called "Move 2", and "Move 2, Sonos Move 2"
+    says the same thing twice.
+    """
+    trimmed = model.strip()
+    for prefix in ("Sonos ", "SONOS "):
+        if trimmed.startswith(prefix):
+            trimmed = trimmed[len(prefix):]
+            break
+    haystack, needle = name.casefold().strip(), trimmed.casefold().strip()
+    # Only when the room name already carries the whole model.  A room called
+    # "Arc" next to an Arc Ultra still needs to hear which one it is.
+    if needle and needle in haystack:
+        return name
+    return f"{name}, {model}"
+
+
 def capability(room, key):
     try:
         return bool(getattr(room, key))
@@ -167,7 +186,7 @@ class Settings:
         prefix = ""
         if context:
             self._spokenRoom = room.uid
-            prefix = f"{room.player_name}, {self.models[room.uid]}, "
+            prefix = room_and_model(room.player_name, self.models[room.uid]) + ", "
         return f"{prefix}{option.label}, {text}"
 
     def move(self, delta):

@@ -24,7 +24,7 @@ from .playbacksettings import PlaybackSettings
 from .relayhooks import Relay
 from .settings import Settings
 from .transfer import Transfer
-from .util import valid_url
+from .util import PAGE_STEP, valid_url
 from . import vendors
 
 CONFIG_SECTION = "sonosController"
@@ -176,10 +176,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                             message = menu.move(1 if action == "menuDown" else -1)
                         elif action in ("menuLeft", "menuRight"):
                             message = menu.adjust(1 if action == "menuRight" else -1)
+                        elif action in ("menuPageUp", "menuPageDown"):
+                            step = PAGE_STEP if action == "menuPageUp" else -PAGE_STEP
+                            message = menu.adjust(step)
                         else:
                             continue
                     elif action in ("menuUp", "menuDown"):
                         message = menu.move(1 if action == "menuDown" else -1)
+                    elif action in ("menuPageUp", "menuPageDown"):
+                        message = menu.move(PAGE_STEP if action == "menuPageDown" else -PAGE_STEP)
                     elif isinstance(menu, Favorites) and action == "menuEnter":
                         self.relay.stop()
                         message = menu.play(cancelled)
@@ -241,6 +246,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         continue
                     if action in ("settingsUp", "settingsDown"):
                         message = settings.move(1 if action == "settingsDown" else -1)
+                    elif action in ("settingsPageUp", "settingsPageDown"):
+                        step = PAGE_STEP if action == "settingsPageUp" else -PAGE_STEP
+                        message = settings.adjust(step)
                     else:
                         message = settings.adjust(1 if action == "settingsRight" else -1)
                 elif action == "groupStart":
@@ -429,6 +437,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def script_remaining(self, gesture):
         self._submit("remaining")
+
+    def script_pageUp(self, gesture):
+        self._submit("pageUp")
+
+    def script_pageDown(self, gesture):
+        self._submit("pageDown")
 
     def script_seekBack(self, gesture):
         self._submit("seekBack")
