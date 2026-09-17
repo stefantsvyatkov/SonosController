@@ -1,11 +1,16 @@
-"""Check the emulator's key model against real Windows controls.
+"""Check the key handling against real Windows controls, not just the emulator.
 
-The emulator claims that a horizontal ``wx.Slider`` moves the wrong way under
-the arrow keys.  That claim is only worth anything if it matches the real
-control, so this script builds the real widgets and posts key messages
-*directly to each control's window handle*.  Nothing is shown on screen and
-no input is injected into the desktop, so a running screen reader and the
-user's keyboard focus are left alone.
+Two things are measured here:
+
+1. That a stock horizontal ``wx.Slider`` really does move the wrong way under
+   the arrow keys, which is what the emulator models and what made the alarm
+   dialog's volume field run backwards.
+2. That ``controls.Slider``, the add-on's replacement, moves the right way
+   while still being an ordinary slider.
+
+Key messages go *directly to each control's window handle* and the windows are
+off-screen and never activated, so a running screen reader and the user's
+keyboard focus are left alone.
 
 Run with the harness virtual environment::
 
@@ -117,8 +122,53 @@ def main():
         print("  control is inverted rather than merely inconsistent.")
 
     frame.Destroy()
+    fixed = verify_fixed_slider()
     app.Destroy()
-    return 0 if inverted else 1
+    return 0 if inverted and fixed else 1
+
+
+
+
+def verify_fixed_slider():
+    """Drive the add-on's own Slider to prove the correction works for real."""
+    import sys
+    sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "tests"))
+    from support import load
+
+    controls = load("controls")
+
+    app = wx.App.Get() or wx.App()
+    frame = wx.Frame(None, title="fixed slider probe", pos=(-4000, -4000),
+                     size=(300, 120),
+                     style=wx.FRAME_TOOL_WINDOW | wx.FRAME_NO_TASKBAR | wx.BORDER_NONE)
+    panel = wx.Panel(frame)
+    slider = controls.Slider(panel, value=50, minValue=0, maxValue=100,
+                             style=wx.SL_HORIZONTAL | wx.SL_LABELS)
+    frame.ShowWithoutActivating()
+    slider.SetFocus()
+    wx.SafeYield()
+
+    print()
+    print("the add-on's controls.Slider, starting at 50")
+    results = {}
+    for key in ("up", "down", "pageup", "pagedown", "left", "right"):
+        before = slider_position(slider)
+        tap(slider, key)
+        wx.SafeYield()
+        after = slider_position(slider)
+        arrow = "increases" if after > before else "decreases" if after < before else "no change"
+        print(f"  {key:<9} {before:>3} -> {after:>3}   {arrow}")
+        results[key] = after - before
+
+    ok = (results["up"] > 0 and results["down"] < 0
+          and results["pageup"] > 0 and results["pagedown"] < 0
+          and results["right"] > 0 and results["left"] < 0)
+    print()
+    print("  the corrected slider raises on Up and Page Up" if ok
+          else "  THE CORRECTION IS NOT WORKING on the real control")
+
+    frame.Destroy()
+    return ok
 
 
 if __name__ == "__main__":
