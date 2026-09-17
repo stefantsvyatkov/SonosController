@@ -1,12 +1,27 @@
-addon/doc/*.css
-addon/doc/en/
+# Build output and the pip-installed dependency staging area.
+/build/
+*.nvda-addon
+*-corresponding-source.zip
+.sconsign.dblite
+
+# Local tooling that is fetched, not authored.
+/.tools/
+
+# Generated documentation and translation artefacts.
+doc/*/readme.html
 *_docHandler.py
-*.html
-manifest.ini
 *.mo
 *.pot
-*.py[co]
-*.nvda-addon
-.sconsign.dblite
 /[0-9]*.[0-9]*.[0-9]*.json
+
+# Python.
+*.py[co]
+__pycache__/
 *.egg-info
+.venv/
+
+# The FFmpeg relay keeps its binaries and generated packages out of the
+# repository; tools/experimental.py fetches and builds them on demand.
+/experimental/ffmpeg-relay/bin/
+/experimental/ffmpeg-relay/thirdParty/ffmpeg/*.exe
+/experimental/ffmpeg-relay/historical-prototype/

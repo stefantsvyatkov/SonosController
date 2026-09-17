@@ -60,8 +60,9 @@ dev = [
 line-length = 110
 
 builtins = [
-	# translation lookup
-	"_",
+	# ``_`` is deliberately absent: the add-on imports it from its own i18n
+	# module, and dummy-variable-rgx below stops ruff treating it as a
+	# throwaway name so its uses are counted properly.
 	# translation lookup
 	"ngettext",
 	# translation lookup
@@ -79,20 +80,31 @@ exclude = [
 	".git",
 	"__pycache__",
 	".venv",
+	".tools",
 	"buildVars.py",
 	"tests",
+	# Generated dependency tree and its pip-installed source; not ours to lint.
+	"globalPlugins/sonosController/_vendor",
+	"build",
+	# The upstream add-on template, kept for reference only.
+	"site_scons",
+	"templateDocs",
 ]
 
 [tool.ruff.format]
-indent-style = "tab"
+# The add-on itself is written with four spaces; only the template used tabs.
+indent-style = "space"
 line-ending = "lf"
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
 [tool.ruff.lint]
+# A bare "_" is a real name here (the gettext lookup), not a discard.
+dummy-variable-rgx = "^_+[a-zA-Z0-9_]*[a-zA-Z0-9]+$"
+
 ignore = [
-	# indentation contains tabs
+	# indentation contains tabs, which the retained template files still use
 	"W191",
 ]
 logger-objects = ["logHandler.log"]
@@ -117,6 +129,11 @@ exclude = [
 	".git",
 	"__pycache__",
 	".venv",
+	".tools",
+	"build",
+	"globalPlugins/sonosController/_vendor",
+	"experimental",
+	"research",
 	"site_scons",
 	".github/scripts",
 	"tests",

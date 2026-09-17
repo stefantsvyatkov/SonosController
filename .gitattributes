@@ -1,5 +1,11 @@
 # Set default behaviour, in case users don't have core.autocrlf set.
 * text=auto
+globalPlugins/sonosController/_vendor/** text eol=lf
+experimental/ffmpeg-relay/bin/**/*.exe binary
+experimental/ffmpeg-relay/bin/**/*.txt text eol=lf
+experimental/ffmpeg-relay/bin/**/*.sha256 text eol=lf
+experimental/ffmpeg-relay/thirdParty/ffmpeg/** text eol=lf
+experimental/ffmpeg-relay/tools/*.sh text eol=lf
 
 # Try to ensure that po files in the repo does not include
 # source code line numbers.
