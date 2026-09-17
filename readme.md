@@ -70,6 +70,13 @@ That package is the public source byte-for-byte plus one added file, the
 FFmpeg executable, which `ffmpeg.bundled_path()` picks up. Because the code
 does not differ, refactoring cannot silently break the variant.
 
+The relay's own tests run with the main suite. Two further tests cover the
+personal build itself and need the executable present, so they stay separate:
+
+```bash
+python -m unittest discover -s experimental/ffmpeg-relay/tests
+```
+
 ## Installation for development
 
 The junction `%APPDATA%\nvda\addons\sonosController` points at this project

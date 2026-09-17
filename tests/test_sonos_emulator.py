@@ -289,6 +289,19 @@ class Cost(EmulatorTest):
         self.assertEqual(session.count_calls(reset=False), 0,
                          "moving between settings must read from the snapshot")
 
+    def test_capabilities_are_probed_once_per_room(self):
+        """Gating each option separately once cost 420 checks instead of 20."""
+        house = default_household()
+        for name in ("Kitchen", "Office", "TV Room"):
+            house.find(name)._coordinator = house.find("Living Room").uid
+        session = self.layer(household=house)
+        session.count_calls()
+        session.press("kb:control+s")
+        checks = [c for c in session.household.calls if c.startswith("capability")]
+        rooms = len(house.players)
+        self.assertLessEqual(len(checks), rooms * 6,
+                             "capability checks must not scale with the option count")
+
     def test_changing_one_setting_writes_and_confirms(self):
         session = self.layer()
         session.press("kb:control+s")

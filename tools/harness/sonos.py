@@ -316,29 +316,35 @@ class SimPlayer:
         object.__setattr__(self, name, value)
 
     # -- capability flags ------------------------------------------------
+    # SoCo asks the device for each of these, so they cost a request just like
+    # a setting does.  Counting them keeps the responsiveness numbers honest.
+    def _flag(self, name, default=False):
+        self.household.call(f"capability {name}")
+        return self._flags.get(name, default)
+
     @property
     def is_soundbar(self):
-        return self._flags.get("is_soundbar", False)
+        return self._flag("is_soundbar")
 
     @property
     def is_arc_ultra_soundbar(self):
-        return self._flags.get("is_arc_ultra", False)
+        return self._flag("is_arc_ultra")
 
     @property
     def has_satellites(self):
-        return self._flags.get("has_satellites", False)
+        return self._flag("has_satellites")
 
     @property
     def _ht_sat_chan_map(self):
-        return self._flags.get("_ht_sat_chan_map", "")
+        return self._flag("_ht_sat_chan_map", "")
 
     @property
     def has_subwoofer(self):
-        return self._flags.get("has_subwoofer", False)
+        return self._flag("has_subwoofer")
 
     @property
     def supports_fixed_volume(self):
-        return self._flags.get("supports_fixed_volume", False)
+        return self._flag("supports_fixed_volume")
 
     @property
     def is_coordinator(self):

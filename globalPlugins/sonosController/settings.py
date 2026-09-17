@@ -75,8 +75,11 @@ class Settings:
             except AttributeError:
                 model = _("Unknown model")
             self.models[room.uid] = model
+            # Once per room: each capability lookup is a request on real
+            # hardware, so asking again for all twenty-odd options was waste.
+            gates = self.gates(room, model)
             for option in OPTIONS:
-                if not self.gates(room, model)[option.gate]:
+                if not gates[option.gate]:
                     continue
                 try:
                     value = self.read(room, option)

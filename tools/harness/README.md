@@ -108,6 +108,11 @@ against speakers you are willing to have change state.
   runs the real code in `discovery.py`.
 - `fakewx` models focus, visibility, tab order and key handling, not layout.
   Anything about sizing or painting has to be checked in real wx.
+  `probe_alarm_dialog.py` and `verify_win32_keys.py` do exactly that: they
+  build the real dialog with real wxPython and post keys straight to each
+  control's window handle, which is how the inverted arrows were pinned down.
+- Capability lookups (`is_soundbar`, `has_subwoofer`, ...) count as requests,
+  because SoCo asks the device for them.
 - The `Alarms` registry in `sonos.py` is a singleton, like SoCo's, so a test
   that cares about stale alarm state should call `session.alarms_module.reset()`.
 - `fakewx.Dialog.modal_hook` is process-global; one `Session` at a time.
