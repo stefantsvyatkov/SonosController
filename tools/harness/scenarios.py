@@ -34,7 +34,7 @@ def banner(text):
 
 # --------------------------------------------------------------------------
 
-@scenario("Alarm dialog: arrow keys run backwards on the volume slider")
+@scenario("Alarm dialog: the volume slider follows the arrows")
 def alarm_volume_inverted():
     session = Session()
     session.press("kb:NVDA+shift+control+s", "kb:a")
@@ -58,9 +58,10 @@ def alarm_volume_inverted():
         print(f"    press PageUp   -> {volume.GetValue()}")
         dialog.press("pagedown")
         print(f"    press PageDown -> {volume.GetValue()}")
-        verdict = "INVERTED" if after_up < start else "ok"
-        print(f"\n  verdict: arrows are {verdict} relative to what a user expects,")
-        print("           and PageUp/PageDown disagree with the arrows.")
+        verdict = "still INVERTED" if after_up < start else "correct"
+        print(f"\n  verdict: the arrows are {verdict}. Windows moves a trackbar")
+        print("           the other way, so the dialog corrects it while keeping")
+        print("           an ordinary slider. See verify_win32_keys.py.")
         return False
 
     session.on_dialog(inspect)
@@ -80,7 +81,7 @@ def alarm_fields():
         while repeat.GetStringSelection() != "Selected days":
             dialog.press("down")
         print(f"  heard: {repeat.speak()}")
-        print("  (the Days list has now appeared, with no announcement)\n")
+        print("  (the Days list has appeared; the dialog names what it added)\n")
         print(dialog.read())
         return False
 
@@ -89,7 +90,7 @@ def alarm_fields():
     session.close()
 
 
-@scenario("Group mode: Up arrow silently throws the selection away")
+@scenario("Group mode: the volume keys work without losing the selection")
 def group_up_cancels():
     session = Session()
     session.press("kb:NVDA+shift+control+s")
@@ -98,12 +99,15 @@ def group_up_cancels():
     print(f"  mode: {session.mode}")
     print("\n  selecting a second room with Right then Space:")
     print("  " + "\n  ".join(session.press("kb:rightArrow", "kb:space")))
-    print("\n  now pressing Up, expecting it to move in the room list:")
+    print("\n  now pressing Up, which used to abandon the whole selection:")
     for line in session.press("kb:upArrow"):
         print("  " + line)
     print(f"  mode: {session.mode}")
-    print("\n  verdict: the group selection was discarded and the key changed"
-          "\n           the volume instead. Nothing said why.")
+    print("\n  and Enter still applies what was selected:")
+    for line in session.press("kb:enter"):
+        print("  " + line)
+    print("\n  verdict: Up and Down adjust the volume exactly as they do in the"
+          "\n           main layer, and the room selection survives.")
     session.close()
 
 
@@ -128,11 +132,13 @@ def settings_round_trips():
         heard = session.press(key)
         print(f"  {label}: {session.count_calls()} requests,"
               f" {time.monotonic() - start:.2f} s -> {heard[-1] if heard else ''}")
-    print("\n  verdict: every arrow press re-reads the value over the network.")
+    print("\n  verdict: opening still probes every setting on every room, but"
+          "\n           browsing is free and a change costs one write plus one"
+          "\n           read-back.")
     session.close()
 
 
-@scenario("Local files: one network request per file in the folder")
+@scenario("Local files: how many requests a folder costs")
 def local_files_round_trips():
     import tempfile
     import os
@@ -156,14 +162,16 @@ def local_files_round_trips():
 
     session.on_dialog(choose)
     heard = session.press("kb:control+f")
-    print(f"  25 files -> {session.count_calls()} network requests")
+    batched = len([c for c in session.household.calls if c == "AddMultipleURIsToQueue"])
+    print(f"  25 files -> {session.count_calls()} network requests,"
+          f" {batched} of them queue additions")
     print(f"  heard: {heard[-1] if heard else '(nothing)'}")
-    print("\n  verdict: the count scales one-to-one with the file count, so the"
-          "\n           documented 1000-file limit means ~1000 sequential requests.")
+    print("\n  verdict: tracks are queued sixteen at a time, so the documented"
+          "\n           1000-file limit is about 63 requests, not 1000.")
     session.close()
 
 
-@scenario("Unload: when does terminate() stall NVDA?")
+@scenario("Unload: NVDA is never held up waiting for a speaker")
 def terminate_stall():
     print("  case A: the task queue is full when NVDA unloads the add-on")
     house = default_household()
@@ -191,12 +199,10 @@ def terminate_stall():
     elapsed = time.monotonic() - start
     print(f"    terminate() took {elapsed:.2f} s,"
           f" worker alive: {session.plugin.worker.is_alive()}")
-    for level, text in session.log.records:
-        if level == "warning":
-            print(f"    log warning: {text}")
-    print("\n    -> this is the real stall: nothing interrupts an in-flight"
-          "\n       request, so NVDA waits out the whole 4 s join timeout and"
-          "\n       then leaks the thread.")
+    print("    -> a request in flight still cannot be interrupted, but the"
+          "\n       worker is a daemon that stops at its next loop and holds"
+          "\n       nothing that must be released here, so NVDA waits about a"
+          "\n       second rather than the four it used to.")
     session.close()
 
 
