@@ -16,8 +16,80 @@ FILE_MIME = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".ogg": "application/o
              ".aif": "audio/aiff", ".aiff": "audio/aiff"}
 
 
+#: Some broadcast servers still offer only a key exchange that OpenSSL 3 has
+#: dropped from its default list, so the handshake fails before a byte moves.
+#: Widening the cipher list lets those stations work.  Certificate and
+#: hostname checking stay fully on, which is the part that proves who answered.
+LEGACY_CIPHERS = "DEFAULT@SECLEVEL=1"
+
+
 class Cancelled(Exception):
     pass
+
+
+def describe_network_error(error):
+    """Turn a request failure into something worth speaking.
+
+    Without this every one of them reached the user as "Command failed", which
+    says nothing about what to do next.
+    """
+    exceptions = vendors.requests().exceptions
+    if isinstance(error, exceptions.SSLError):
+        return _("The station's secure connection could not be established.")
+    if isinstance(error, exceptions.ConnectTimeout):
+        return _("The audio address did not answer in time.")
+    if isinstance(error, exceptions.ReadTimeout):
+        return _("The audio address stopped responding.")
+    if isinstance(error, exceptions.TooManyRedirects):
+        return _("Playlist or redirect loop.")
+    if isinstance(error, exceptions.ConnectionError):
+        return _("Could not reach the audio address. Check the address and the network.")
+    if isinstance(error, exceptions.RequestException):
+        return _("The audio address could not be read.")
+    return None
+
+
+class Fetcher:
+    """Performs the probe requests, retrying a server with an older TLS setup."""
+
+    def __init__(self):
+        self._session = None
+        self._compatible = None
+
+    def _build(self, ciphers=None):
+        requests = vendors.requests()
+        session = requests.Session()
+        if ciphers is not None:
+            import ssl
+
+            context = ssl.create_default_context()
+            context.set_ciphers(ciphers)
+
+            class Adapter(requests.adapters.HTTPAdapter):
+                def init_poolmanager(self, *args, **kwargs):
+                    kwargs["ssl_context"] = context
+                    return super().init_poolmanager(*args, **kwargs)
+
+            session.mount("https://", Adapter())
+        return session
+
+    def __call__(self, url, **kwargs):
+        if self._session is None:
+            self._session = self._build()
+        try:
+            return self._session.get(url, **kwargs)
+        except vendors.requests().exceptions.SSLError:
+            if self._compatible is None:
+                self._compatible = self._build(LEGACY_CIPHERS)
+            return self._compatible.get(url, **kwargs)
+
+    def close(self):
+        for session in (self._session, self._compatible):
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
 
 
 @dataclass(frozen=True)
@@ -45,8 +117,9 @@ def clean_url(url):
 def resolve_audio(url, get=None, cancelled=lambda: False):
     if cancelled():
         raise Cancelled()
+    owned = None
     if get is None:
-        get = vendors.requests().get
+        owned = get = Fetcher()
     deadline = time.monotonic() + 20
     budget = [10]
 
@@ -63,8 +136,18 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
             raise RuntimeError(_("Playlist or redirect loop."))
         visited = visited | {address}
         budget[0] -= 1
-        with get(address, stream=True, allow_redirects=False, timeout=(3, 4),
-                 headers={"User-Agent": "SonosController/0.1", "Accept-Encoding": "identity"}) as response:
+        try:
+            response = get(address, stream=True, allow_redirects=False, timeout=(3, 4),
+                           headers={"User-Agent": "SonosController/0.1",
+                                    "Accept-Encoding": "identity"})
+        except Cancelled:
+            raise
+        except Exception as error:
+            explanation = describe_network_error(error)
+            if explanation is None:
+                raise
+            raise RuntimeError(explanation) from error
+        with response:
             headers = {k.lower(): v for k, v in response.headers.items()}
             status = response.status_code
             if status in (301, 302, 303, 307, 308):
@@ -151,7 +234,11 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
             title = " ".join(title.split())[:160]
             return AudioSource(address, "radio" if radio else "file", mime or FILE_MIME.get(extension, "audio/mpeg"), title)
 
-    return resolve(url, 0, set())
+    try:
+        return resolve(url, 0, set())
+    finally:
+        if owned is not None:
+            owned.close()
 
 
 def transport_candidates(source):
