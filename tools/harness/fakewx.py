@@ -32,6 +32,7 @@ EVT_SCROLL_CHANGED = "scroll_changed"
 WXK_END, WXK_HOME = 312, 313
 WXK_LEFT, WXK_UP, WXK_RIGHT, WXK_DOWN = 314, 315, 316, 317
 WXK_NUMPAD_UP, WXK_NUMPAD_PAGEUP, WXK_NUMPAD_PAGEDOWN, WXK_NUMPAD_DOWN = 321, 323, 324, 326
+WXK_NUMPAD_HOME, WXK_NUMPAD_END = 375, 382
 WXK_PAGEUP, WXK_PAGEDOWN = 366, 367
 WXK_SPACE, WXK_RETURN, WXK_ESCAPE = 32, 13, 27
 
@@ -394,13 +395,23 @@ class Slider(Window):
     def GetPageSize(self):
         return self.page
 
+    def SetLineSize(self, size):
+        self.line = max(1, int(size))
+
+    def set_native_style(self, bits):
+        """The native window's style bits, as SetWindowLong would add them."""
+        self.native_style = getattr(self, "native_style", 0) | bits
+
     def native_key(self, name):
         # Win32 trackbar: VK_LEFT/VK_UP decrement and VK_RIGHT/VK_DOWN
         # increment, with Page Up/Page Down following the same direction.
         # Measured against real wxWidgets in verify_win32_keys.py, so a
-        # horizontal slider lowers its value on the Up arrow.
-        deltas = {"up": -1, "left": -1, "down": 1, "right": 1,
-                  "pageup": -self.page, "pagedown": self.page,
+        # horizontal slider lowers its value on the Up arrow - unless the
+        # control has TBS_DOWNISLEFT (0x400), which makes Up and Page Up raise
+        # it (the Win32 documentation; checked with NVDA in the sandbox).
+        up = 1 if getattr(self, "native_style", 0) & 0x400 else -1
+        deltas = {"up": up, "left": -1, "down": -up, "right": 1,
+                  "pageup": up * self.page, "pagedown": -up * self.page,
                   "home": self.min - self.value, "end": self.max - self.value}
         if name not in deltas:
             return False

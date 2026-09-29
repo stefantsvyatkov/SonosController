@@ -234,6 +234,27 @@ class FixedDefects(EmulatorTest):
         self.assertEqual(seen["up"], seen["start"] + 1, "Up must move to a later hour")
         self.assertEqual(seen["down"], seen["start"])
 
+    def test_number_dropdown_home_is_smallest_and_end_largest(self):
+        session = self.layer()
+        session.press("kb:a")
+        seen = {}
+
+        def inspect(dialog):
+            hour = dialog.focus_on("Hour")
+            dialog.press("end")
+            seen["end"] = hour.GetStringSelection()
+            dialog.press("up")
+            seen["up at the end"] = hour.GetStringSelection()
+            dialog.press("home")
+            seen["home"] = hour.GetStringSelection()
+            dialog.press("down")
+            seen["down at the start"] = hour.GetStringSelection()
+            return False
+
+        session.on_dialog(inspect)
+        session.press("kb:enter")
+        self.assertEqual(seen, {"end": "23", "up at the end": "23", "home": "00", "down at the start": "00"})
+
     def test_page_keys_move_five_in_the_arrows_direction(self):
         for name in ("Volume (%)", "Hour", "Minute"):
             with self.subTest(field=name):
