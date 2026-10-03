@@ -235,6 +235,11 @@ class FixedDefects(EmulatorTest):
         self.assertEqual(seen["down"], seen["start"])
 
     def test_number_dropdown_home_is_smallest_and_end_largest(self):
+        """Home and End still reach the extremes, and the ends join up.
+
+        This used to assert that the ends stop.  The hours and minutes now wrap
+        instead, so getting from 23 to 00 no longer means holding a key down.
+        """
         session = self.layer()
         session.press("kb:a")
         seen = {}
@@ -253,7 +258,67 @@ class FixedDefects(EmulatorTest):
 
         session.on_dialog(inspect)
         session.press("kb:enter")
-        self.assertEqual(seen, {"end": "23", "up at the end": "23", "home": "00", "down at the start": "00"})
+        self.assertEqual(seen, {"end": "23", "up at the end": "00",
+                                "home": "00", "down at the start": "23"})
+
+    def test_number_dropdowns_wrap_at_both_ends(self):
+        """Every numeric field in the alarm window is a ring, pages included."""
+        for name, last in (("Hour", "23"), ("Minute", "59")):
+            with self.subTest(field=name):
+                session = self.layer()
+                session.press("kb:a")
+                seen = {}
+
+                def inspect(dialog, seen=seen, last=last):
+                    field = dialog.focus_on(name)
+                    dialog.press("end")
+                    dialog.press("up")
+                    seen["past the top"] = field.GetStringSelection()
+                    dialog.press("down")
+                    seen["back down again"] = field.GetStringSelection()
+                    dialog.press("end")
+                    dialog.press("pageup")
+                    seen["page past the top"] = field.GetStringSelection()
+                    return False
+
+                session.on_dialog(inspect)
+                session.press("kb:enter")
+                self.assertEqual(seen["past the top"], "00")
+                self.assertEqual(seen["back down again"], last)
+                self.assertEqual(seen["page past the top"], "04",
+                                 "a page past the last value lands five in")
+
+    def test_a_new_alarm_repeats_once(self):
+        """A one-off alarm is the safe default; it cannot keep going off unnoticed."""
+        session = self.layer()
+        session.press("kb:a")
+        seen = {}
+
+        def inspect(dialog):
+            repeat = dialog.focus_on("Repeat")
+            seen["order"] = list(repeat.choices)
+            seen["selected"] = repeat.GetStringSelection()
+            seen["stored"] = dialog.RECURRENCES[repeat.GetSelection()]
+            return False
+
+        session.on_dialog(inspect)
+        session.press("kb:n")                 # N creates a new alarm
+        self.assertEqual(seen["order"][0], "Once", "Once belongs at the top")
+        self.assertEqual(seen["selected"], "Once")
+        self.assertEqual(seen["stored"], "ONCE")
+
+    def test_an_existing_alarm_keeps_its_own_repeat(self):
+        session = self.layer()
+        session.press("kb:a")
+        seen = {}
+
+        def inspect(dialog):
+            seen["selected"] = dialog.focus_on("Repeat").GetStringSelection()
+            return False
+
+        session.on_dialog(inspect)
+        session.press("kb:enter")             # edit the WEEKDAYS alarm already there
+        self.assertEqual(seen["selected"], "Weekdays")
 
     def test_page_keys_move_five_in_the_arrows_direction(self):
         for name in ("Volume (%)", "Hour", "Minute"):

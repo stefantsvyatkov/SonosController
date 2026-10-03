@@ -8,7 +8,8 @@
 * :class:`NumberChoice` is a standard dropdown of ordered numbers (hours,
   minutes).  While it is closed, Up takes the next larger value, Down the next
   smaller, Home the smallest and End the largest; Page Up and Page Down move
-  :data:`PAGE_STEP` values in a list long enough for that.  Open, it is walked as
+  :data:`PAGE_STEP` values in a list long enough for that.  The values form a
+  ring: past the largest comes the smallest again.  Open, it is walked as
   it is shown.  Nothing is reported by the add-on: the selection is put silently
   next to the target and the native control is given one arrow key towards it,
   so the control makes the last step itself and raises the value, selection and
@@ -65,22 +66,31 @@ class NumberChoice(wx.Choice):
         self.Bind(wx.EVT_KEY_DOWN, self._onKey)
 
     def target(self, key):
-        """The item ``key`` goes to while the list is closed, or None to leave the key as it is."""
+        """The item ``key`` goes to while the list is closed, or None to leave the key as it is.
+
+        The list is a ring: past the largest value comes the smallest again.
+        An hour runs that way anyway, and it saves holding a key down to get
+        from one end to the other.  Home and End still jump to the extremes.
+        """
         count, current = self.GetCount(), self.GetSelection()
         page = PAGE_STEP if count >= PAGED_LENGTH else 0
+        step = (current + 1) % count
+        back = (current - 1) % count
+        forward_page = (current + page) % count
+        back_page = (current - page) % count
         return {
-            wx.WXK_UP: min(current + 1, count - 1),
-            wx.WXK_NUMPAD_UP: min(current + 1, count - 1),
-            wx.WXK_DOWN: max(current - 1, 0),
-            wx.WXK_NUMPAD_DOWN: max(current - 1, 0),
+            wx.WXK_UP: step,
+            wx.WXK_NUMPAD_UP: step,
+            wx.WXK_DOWN: back,
+            wx.WXK_NUMPAD_DOWN: back,
             wx.WXK_HOME: 0,
             wx.WXK_NUMPAD_HOME: 0,
             wx.WXK_END: count - 1,
             wx.WXK_NUMPAD_END: count - 1,
-            wx.WXK_PAGEUP: max(current, min(current + page, count - 1)),
-            wx.WXK_NUMPAD_PAGEUP: max(current, min(current + page, count - 1)),
-            wx.WXK_PAGEDOWN: max(current - page, 0),
-            wx.WXK_NUMPAD_PAGEDOWN: max(current - page, 0),
+            wx.WXK_PAGEUP: forward_page,
+            wx.WXK_NUMPAD_PAGEUP: forward_page,
+            wx.WXK_PAGEDOWN: back_page,
+            wx.WXK_NUMPAD_PAGEDOWN: back_page,
         }.get(key)
 
     def _onKey(self, event):

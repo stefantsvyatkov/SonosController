@@ -56,7 +56,8 @@ class FieldGrid:
 
 
 class AlarmDialog(wx.Dialog):
-    RECURRENCES = ("DAILY", "ONCE", "WEEKDAYS", "WEEKENDS", "CUSTOM")
+    # A one-off alarm is the safe default: it cannot keep going off unnoticed.
+    RECURRENCES = ("ONCE", "DAILY", "WEEKDAYS", "WEEKENDS", "CUSTOM")
     PLAY_MODES = ("NORMAL", "SHUFFLE_NOREPEAT", "SHUFFLE", "REPEAT_ALL",
                   "REPEAT_ONE", "SHUFFLE_REPEAT_ONE")
     DAYS = None  # filled in at construction so the names are translated
@@ -83,9 +84,9 @@ class AlarmDialog(wx.Dialog):
         uid = alarm.room_uuid if alarm else context["defaultRoom"]
         room.SetSelection(context["roomIds"].index(uid) if uid in context["roomIds"] else wx.NOT_FOUND)
 
-        recurrence = alarm.recurrence if alarm else "DAILY"
+        recurrence = alarm.recurrence if alarm else "ONCE"
         repeat = grid.add("recurrence", _("Repeat"), lambda: wx.Choice(panel, choices=[
-            _("Every day"), _("Once"), _("Weekdays"), _("Weekends"), _("Selected days")]))
+            _("Once"), _("Every day"), _("Weekdays"), _("Weekends"), _("Selected days")]))
         repeat.SetSelection(self.RECURRENCES.index(recurrence)
                             if recurrence in self.RECURRENCES else 4)
 
