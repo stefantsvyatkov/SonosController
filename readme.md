@@ -20,7 +20,6 @@ added later without touching the code.
 | `tools/harness/` | headless NVDA + simulated Sonos household ([readme](tools/harness/README.md)) |
 | `research/` | hardware test notes, radio surveys, prototypes; not shipped |
 | `build/` | generated packages and the pip staging area; not committed |
-| `site_scons/`, `sconstruct`, `templateDocs/` | retained upstream add-on template; unused by this build |
 
 ## Working on it
 

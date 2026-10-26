@@ -71,28 +71,20 @@ builtins = [
 	"npgettext",
 ]
 
-include = [
-	"*.py",
-	"sconstruct",
-]
+include = ["*.py"]
 
 exclude = [
 	".git",
 	"__pycache__",
 	".venv",
 	".tools",
-	"buildVars.py",
 	"tests",
 	# Generated dependency tree and its pip-installed source; not ours to lint.
 	"globalPlugins/sonosController/_vendor",
 	"build",
-	# The upstream add-on template, kept for reference only.
-	"site_scons",
-	"templateDocs",
 ]
 
 [tool.ruff.format]
-# The add-on itself is written with four spaces; only the template used tabs.
 indent-style = "space"
 line-ending = "lf"
 
@@ -103,16 +95,8 @@ max-complexity = 15
 # A bare "_" is a real name here (the gettext lookup), not a discard.
 dummy-variable-rgx = "^_+[a-zA-Z0-9_]*[a-zA-Z0-9]+$"
 
-ignore = [
-	# indentation contains tabs, which the retained template files still use
-	"W191",
-]
+ignore = []
 logger-objects = ["logHandler.log"]
-
-[tool.ruff.lint.per-file-ignores]
-# sconscripts contains many inbuilt functions not recognised by the lint,
-# so ignore F821.
-"sconstruct" = ["F821"]
 
 [tool.pyright]
 venvPath = ".venv"
@@ -125,17 +109,13 @@ include = [
 ]
 
 exclude = [
-	"sconstruct",
 	".git",
 	"__pycache__",
 	".venv",
 	".tools",
 	"build",
 	"globalPlugins/sonosController/_vendor",
-	"experimental",
 	"research",
-	"site_scons",
-	".github/scripts",
 	"tests",
 	# When excluding concrete paths relative to a directory,
 	# not matching multiple folders by name e.g. `__pycache__`,

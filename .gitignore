@@ -1,7 +1,6 @@
 # Build output and the pip-installed dependency staging area.
 /build/
 *.nvda-addon
-.sconsign.dblite
 
 # Local tooling that is fetched, not authored.
 /.tools/
