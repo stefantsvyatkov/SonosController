@@ -1,9 +1,14 @@
-"""Finding FFmpeg on the machine, and what happens when there is none."""
+"""Finding FFmpeg, downloading one, and what happens when there is none."""
 
+import hashlib
+import http.server
 import subprocess
 import sys
+import tempfile
+import threading
 import types
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,11 +18,6 @@ from support import load
 
 ffmpeg = load("ffmpeg")
 relayhooks = load("relayhooks")
-
-#: A real FFmpeg lives here in a development checkout; skipped without it.
-BUNDLED = (Path(__file__).resolve().parents[1]
-           / "experimental" / "ffmpeg-relay" / "bin" / "x64" / "ffmpeg.exe")
-
 
 def result(returncode=0, stdout="", stderr=""):
     return types.SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
@@ -53,15 +53,9 @@ class Describe(unittest.TestCase):
 
         self.assertIsNone(ffmpeg.describe("x", run=hang))
 
-    @unittest.skipUnless(BUNDLED.is_file(), "no FFmpeg in this checkout")
-    def test_the_real_binary_is_accepted(self):
-        found = ffmpeg.describe(BUNDLED)
-        self.assertIsNotNone(found, "the bundled FFmpeg was not recognised")
-        self.assertIn("ffmpeg version", found[0].lower())
-
-    @unittest.skipUnless(BUNDLED.is_file(), "no FFmpeg in this checkout")
     def test_a_path_given_as_a_string_works_too(self):
-        self.assertIsNotNone(ffmpeg.describe(BUNDLED.as_posix()))
+        found = ffmpeg.describe("C:/x/ffmpeg.exe", run=lambda *a, **k: result(stdout=VERSION))
+        self.assertIsNotNone(found)
 
 
 class Find(unittest.TestCase):
@@ -83,8 +77,106 @@ class Find(unittest.TestCase):
         with patch.object(ffmpeg, "candidates", return_value=[]):
             path, reason, encoders = ffmpeg.find()
         self.assertIsNone(path)
-        self.assertIn("No FFmpeg", reason)
+        self.assertIn("not installed", reason)
         self.assertEqual(encoders, set())
+
+
+class Install(unittest.TestCase):
+    """The download: served locally, so nothing here touches the network."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        root = Path(self.temporary.name)
+        self.addCleanup(self.temporary.cleanup)
+        self.target = root / "ffmpeg"
+        self.archive = self.release(root / "release.zip")
+        self.served = self.archive.read_bytes()
+        self.digest = hashlib.sha256(self.served).hexdigest()
+        self.server, self.address = self.serve()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def release(self, path):
+        """An archive shaped like the real one, with stand-ins inside."""
+        root = next(iter(ffmpeg.MEMBERS.values())).split("/", 1)[0]
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr(f"{root}/bin/ffmpeg.exe", b"MZ not really ffmpeg")
+            archive.writestr(f"{root}/LICENSE", "the licence text")
+            archive.writestr(f"{root}/bin/ffprobe.exe", b"MZ not wanted")
+        return path
+
+    def serve(self):
+        body = self.served
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(handler):
+                handler.send_response(200)
+                handler.send_header("Content-Length", str(len(body)))
+                handler.end_headers()
+                handler.wfile.write(body)
+
+            def log_message(handler, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return server, f"http://127.0.0.1:{server.server_port}/ffmpeg.zip"
+
+    def pinned(self, digest=None):
+        return patch.multiple(ffmpeg, URL=self.address, SHA256=digest or self.digest,
+                              SIZE=len(self.served), folder=lambda: self.target)
+
+    def test_a_good_download_is_unpacked(self):
+        seen = []
+        with self.pinned():
+            path = ffmpeg.install(progress=lambda done, total: seen.append((done, total)))
+        self.assertEqual(path, self.target / "ffmpeg.exe")
+        self.assertEqual(path.read_bytes(), b"MZ not really ffmpeg")
+        self.assertEqual((self.target / "LICENSE.txt").read_text(encoding="utf-8"),
+                         "the licence text")
+        # Only what MEMBERS asks for: ffprobe is in the archive but not wanted.
+        self.assertEqual(sorted(p.name for p in self.target.iterdir()),
+                         ["LICENSE.txt", "ffmpeg.exe"])
+        self.assertTrue(seen, "progress was never reported")
+        self.assertEqual(seen[-1][0], len(self.served))
+
+    def test_a_tampered_download_is_refused_and_leaves_nothing(self):
+        with self.pinned(digest="0" * 64):
+            with self.assertRaises(ValueError):
+                ffmpeg.install()
+        self.assertFalse(self.target.exists(), "a refused download must not be installed")
+        self.assertFalse(self.target.with_name(self.target.name + ".download").exists())
+
+    def test_cancelling_leaves_nothing(self):
+        with self.pinned():
+            with self.assertRaises(ffmpeg.Cancelled):
+                ffmpeg.install(cancelled=lambda: True)
+        self.assertFalse(self.target.exists())
+        self.assertFalse(self.target.with_name(self.target.name + ".download").exists())
+
+    def test_installing_again_replaces_what_was_there(self):
+        self.target.mkdir(parents=True)
+        (self.target / "stale.txt").write_text("from an older version", encoding="utf-8")
+        with self.pinned():
+            ffmpeg.install()
+        self.assertFalse((self.target / "stale.txt").exists())
+        self.assertTrue((self.target / "ffmpeg.exe").is_file())
+
+    def test_a_downloaded_copy_is_offered_to_the_finder(self):
+        self.target.mkdir(parents=True)
+        (self.target / "ffmpeg.exe").write_bytes(b"MZ")
+        with patch.object(ffmpeg, "folder", lambda: self.target):
+            with patch.object(ffmpeg.shutil, "which", return_value=None):
+                names = [p.as_posix() for p in ffmpeg.candidates()]
+        self.assertEqual(names, [(self.target / "ffmpeg.exe").as_posix()])
+
+    def test_an_ffmpeg_on_path_is_preferred_to_downloading_another(self):
+        self.target.mkdir(parents=True)
+        (self.target / "ffmpeg.exe").write_bytes(b"MZ")
+        with patch.object(ffmpeg, "folder", lambda: self.target):
+            with patch.object(ffmpeg.shutil, "which", return_value="C:/tools/ffmpeg.exe"):
+                names = [p.as_posix() for p in ffmpeg.candidates()]
+        self.assertEqual(names[0], "C:/tools/ffmpeg.exe")
 
 
 class Fallback(unittest.TestCase):
@@ -101,14 +193,15 @@ class Fallback(unittest.TestCase):
             self.assertEqual(relay.play_url("player", "http://x/a.mp3", bool, print), "Playing Radio")
         direct.assert_called_once()
 
-    def test_without_ffmpeg_a_refused_format_says_it_could_convert(self):
+    def test_without_ffmpeg_a_refused_format_asks_for_the_download(self):
         relay = self.relay()
         refusal = RuntimeError("Audio format rejected by the speaker.")
         with patch.object(relayhooks, "_play_url", side_effect=refusal):
-            with self.assertRaises(RuntimeError) as caught:
+            with self.assertRaises(relayhooks.NeedsFFmpeg) as caught:
                 relay.play_url("player", "http://x/a.ogg", bool, print)
-        self.assertIn("FFmpeg", str(caught.exception))
-        self.assertIn("none here", str(caught.exception))
+        # The speaker's own complaint travels with the signal, so whoever
+        # offers the download can say what went wrong.
+        self.assertIs(caught.exception.problem, refusal)
 
     def test_without_ffmpeg_an_unrelated_failure_is_passed_through(self):
         relay = self.relay()

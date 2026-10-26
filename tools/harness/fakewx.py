@@ -15,6 +15,7 @@ ID_OK, ID_CANCEL, ID_ANY = 5100, 5101, -1
 OK, CANCEL, YES_NO, NO_DEFAULT = 4, 16, 10, 0x80
 YES, NO = 2, 8
 ICON_ERROR, ICON_QUESTION, ICON_INFORMATION = 0x200, 0x400, 0x800
+PD_CAN_ABORT, PD_AUTO_HIDE = 0x01, 0x10
 DEFAULT_DIALOG_STYLE, RESIZE_BORDER = 0x400000, 0x40
 SL_HORIZONTAL, SL_VERTICAL, SL_LABELS = HORIZONTAL, VERTICAL, 0x10
 RA_SPECIFY_ROWS, RA_SPECIFY_COLS = 0x04, 0x08
@@ -668,6 +669,9 @@ class Responder:
         self.message_answer = NO
         self.text_answer = None
         self.file_answer = None
+        self.progress_dialogs = []
+        # Set to True to make the next Update() report that Cancel was pressed.
+        self.progress_cancel = False
 
 
 def build(callafter, responder=None):
@@ -707,6 +711,23 @@ def build(callafter, responder=None):
         def GetValue(self):
             return self.field.GetValue()
 
+    class GenericProgressDialog(Dialog):
+        """Records what the add-on reported, and can answer Cancel."""
+
+        def __init__(self, title, message="", maximum=100, parent=None, style=0):
+            super().__init__(parent, title=title)
+            self.maximum = maximum
+            self.style = style
+            self.updates = [(0, message)]
+            responder.progress_dialogs.append(self)
+
+        def Update(self, value, message=""):
+            self.updates.append((value, message))
+            return (not responder.progress_cancel, False)
+
+        def Hide(self):
+            self.hidden = True
+
     class _PathDialog(Dialog):
         def __init__(self, parent, message="", wildcard="", style=0, **kwargs):
             super().__init__(parent, title=message)
@@ -723,6 +744,7 @@ def build(callafter, responder=None):
     module.CallAfter = CallAfter
     module.CallLater = lambda ms, fn, *a, **k: CallAfter(fn, *a, **k)
     module.MessageBox = MessageBox
+    module.GenericProgressDialog = GenericProgressDialog
     module.TextEntryDialog = TextEntryDialog
     module.FileDialog = _PathDialog
     module.DirDialog = _PathDialog

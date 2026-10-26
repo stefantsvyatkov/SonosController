@@ -1,23 +1,28 @@
-"""Find an FFmpeg the user already has.
+"""The optional FFmpeg: found if the machine has one, downloaded if not.
 
-The public package cannot bundle FFmpeg: the executable is large, and shipping
-it would drag its licence obligations into an NVDA add-on.  So the add-on looks
-for one on the machine instead.  When it finds a usable FFmpeg the URL player
-gains a fallback that can remux or transcode a stream the speaker refuses;
-when it does not, playback behaves exactly as it did before.
+The add-on ships no executable.  That is what lets it be published: a binary
+inside the package would bring its licence obligations with it, and the store
+has no reason to trust an executable it cannot see the source of.  Instead the
+add-on uses an FFmpeg the machine already has, or offers to fetch the official
+Windows build once, on the first stream a speaker refuses.
 
-Search order, first hit wins:
+A download is kept in NVDA's configuration folder, so updating the add-on does
+not throw it away, and it is checked against its SHA-256 before anything is
+unpacked.  Nothing is fetched until the user says yes.
+
+Where it looks, first hit wins:
 
 1. The path set in NVDA's configuration, if the user pointed at one.
-2. ``ffmpeg`` on ``PATH``.
-3. The usual per-user and machine-wide install locations.
-4. A copy bundled next to the add-on, which only the personal build has.
+2. ``ffmpeg`` on ``PATH``: an FFmpeg already installed saves the download.
+3. The copy this module downloaded.
 """
 
-import os
-import platform
+import hashlib
 import shutil
+import ssl
 import subprocess
+import urllib.request
+import zipfile
 from pathlib import Path
 
 from .i18n import _
@@ -28,39 +33,44 @@ PROBE_TIMEOUT = 5
 #: Encoders the fallback needs; without libmp3lame it can only remux.
 REQUIRED_ENCODER = "libmp3lame"
 
-
-def _windows_locations():
-    """Where the common installers put ffmpeg.exe."""
-    roots = []
-    for variable in ("LOCALAPPDATA", "APPDATA", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"):
-        value = os.environ.get(variable)
-        if value:
-            roots.append(Path(value))
-    home = Path.home()
-    candidates = []
-    for root in roots:
-        candidates += [
-            root / "ffmpeg" / "bin" / "ffmpeg.exe",
-            # winget keeps a versioned folder under Links or Packages.
-            root / "Microsoft" / "WinGet" / "Links" / "ffmpeg.exe",
-        ]
-    candidates += [
-        home / "scoop" / "shims" / "ffmpeg.exe",
-        home / "scoop" / "apps" / "ffmpeg" / "current" / "bin" / "ffmpeg.exe",
-        Path("C:/ProgramData/chocolatey/bin/ffmpeg.exe"),
-        Path("C:/ffmpeg/bin/ffmpeg.exe"),
-    ]
-    return candidates
+#: The official Windows build, pinned by version and checked by digest.  The
+#: same release the TikTok Live Reader add-on installs, so a machine with both
+#: fetches one archive.
+URL = "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip"
+SIZE = 114_768_076
+SHA256 = "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
+#: What is kept from the archive, by its name in the FFmpeg folder.  ffprobe is
+#: not needed: the relay asks FFmpeg itself what a stream contains.
+MEMBERS = {
+    "ffmpeg.exe": "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe",
+    "LICENSE.txt": "ffmpeg-9.0.2-essentials_build/LICENSE",
+}
+CHUNK = 256 * 1024
 
 
-def bundled_path():
-    """A copy shipped inside the add-on, used only by the personal build."""
-    architecture = platform.machine().lower()
-    folder = ("arm64" if architecture in ("arm64", "aarch64")
-              else "x64" if architecture in ("amd64", "x86_64") else "")
-    if not folder:
+class Cancelled(Exception):
+    """Raised by :func:`install` when ``cancelled()`` asks it to stop."""
+
+
+def folder():
+    """Where a downloaded FFmpeg lives: NVDA's configuration folder."""
+    from NVDAState import WritePaths
+
+    return Path(WritePaths.configDir) / "sonosController-ffmpeg"
+
+
+def downloaded():
+    """The downloaded FFmpeg's path when it is there, else None."""
+    try:
+        path = folder() / "ffmpeg.exe"
+    except Exception:
         return None
-    return Path(__file__).resolve().parent / "bin" / folder / "ffmpeg.exe"
+    return path if path.is_file() else None
+
+
+def size_mb():
+    """The download's size in megabytes, for the question that offers it."""
+    return round(SIZE / (1024 * 1024))
 
 
 def candidates(configured=""):
@@ -71,13 +81,9 @@ def candidates(configured=""):
     on_path = shutil.which("ffmpeg")
     if on_path:
         found.append(Path(on_path))
-    if os.name == "nt":
-        found += _windows_locations()
-    else:  # pragma: no cover - the add-on only runs on Windows
-        found += [Path("/usr/bin/ffmpeg"), Path("/usr/local/bin/ffmpeg")]
-    bundled = bundled_path()
-    if bundled is not None:
-        found.append(bundled)
+    ours = downloaded()
+    if ours is not None:
+        found.append(ours)
     unique = []
     for path in found:
         if path not in unique:
@@ -121,10 +127,9 @@ def find(configured="", run=None):
     Returns ``(path, version, encoders)``, or ``(None, reason, set())`` with a
     message suitable for speaking when nothing usable was found.
     """
-    seen = candidates(configured)
     if configured and not Path(configured).exists():
         return None, _("The configured FFmpeg path does not exist."), set()
-    for path in seen:
+    for path in candidates(configured):
         try:
             if not path.is_file():
                 continue
@@ -134,4 +139,68 @@ def find(configured="", run=None):
         if details is not None:
             version, encoders = details
             return path, version, encoders
-    return None, _("No FFmpeg was found on this computer."), set()
+    return None, _("FFmpeg is not installed."), set()
+
+
+def _tls():
+    """Certificates checked against the bundled authorities.
+
+    A freshly installed Windows does not always have GitHub's issuer in its
+    own store, and NVDA's Python reads that store; certifi travels with the
+    add-on, so the check holds either way.
+    """
+    from . import vendors
+
+    try:
+        return ssl.create_default_context(cafile=vendors._module("certifi").where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+def install(progress=None, cancelled=lambda: False):
+    """Download, check and unpack FFmpeg; returns its path.
+
+    ``progress(done, total)`` is called with the bytes downloaded so far, and
+    ``cancelled()`` returning True stops the download (:class:`Cancelled`).
+    Raises OSError or ValueError on failure.  Everything happens in a scratch
+    folder that is removed either way, so a failed or cancelled install never
+    leaves a half-written FFmpeg behind for :func:`find` to pick up.
+    """
+    target = folder()
+    work = target.with_name(target.name + ".download")
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    try:
+        archive = work / "ffmpeg.zip"
+        digest = hashlib.sha256()
+        done = 0
+        request = urllib.request.Request(URL, headers={"User-Agent": "Sonos Controller"})
+        with (
+            urllib.request.urlopen(request, timeout=30, context=_tls()) as response,
+            open(archive, "wb") as out,
+        ):
+            total = int(response.headers.get("Content-Length") or SIZE)
+            while True:
+                if cancelled():
+                    raise Cancelled()
+                chunk = response.read(CHUNK)
+                if not chunk:
+                    break
+                out.write(chunk)
+                digest.update(chunk)
+                done += len(chunk)
+                if progress:
+                    progress(done, total)
+        if digest.hexdigest() != SHA256:
+            raise ValueError(_("The download is not the expected FFmpeg."))
+        unpacked = work / "unpacked"
+        unpacked.mkdir()
+        with zipfile.ZipFile(archive) as zipped:
+            for name, member in MEMBERS.items():
+                with zipped.open(member) as source, open(unpacked / name, "wb") as copy:
+                    shutil.copyfileobj(source, copy)
+        shutil.rmtree(target, ignore_errors=True)
+        unpacked.rename(target)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return target / "ffmpeg.exe"

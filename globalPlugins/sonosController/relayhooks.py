@@ -1,14 +1,13 @@
 """The one place the optional FFmpeg fallback plugs into the layer.
 
 URL playback always tries the speaker first.  Only when Sonos refuses the
-format does this look for an FFmpeg on the machine and, if one is there, remux
-or transcode the stream locally so the speaker can play it.
+format does this look for an FFmpeg and, if one is there, remux or transcode
+the stream locally so the speaker can play it.
 
-Nothing is bundled and nothing is downloaded.  With no FFmpeg installed the
-add-on behaves exactly as it did before: the speaker's refusal is reported.
-
-The personal build in ``experimental/ffmpeg-relay`` is the same code with an
-FFmpeg copied in beside it, which ``ffmpeg.bundled_path`` finds.
+Nothing is bundled, and nothing is fetched behind the user's back.  When the
+speaker refuses a stream that conversion would fix and no FFmpeg is installed,
+:class:`NeedsFFmpeg` asks the layer to offer the download; declining leaves
+playback exactly as it was, with the speaker's refusal reported.
 """
 
 import threading
@@ -16,6 +15,18 @@ import threading
 from . import ffmpeg as ffmpeg_finder
 from .i18n import _
 from .urls import play_url as _play_url
+
+class NeedsFFmpeg(Exception):
+    """The speaker refused a stream that conversion would have played.
+
+    Carries the speaker's own complaint, so whoever offers the download can
+    say what went wrong as well as what would fix it.
+    """
+
+    def __init__(self, problem):
+        super().__init__(str(problem))
+        self.problem = problem
+
 
 class Relay:
     """Runs the local conversion when the machine has a usable FFmpeg."""
@@ -83,10 +94,7 @@ class Relay:
             # say that it could have, rather than leaving the user guessing.
             from .relay_urls import fallback_allowed
             if fallback_allowed(error):
-                raise RuntimeError(
-                    _("{problem} Installing FFmpeg would let the add-on convert "
-                      "this stream. {reason}").format(problem=error, reason=self.reason)
-                ) from error
+                raise NeedsFFmpeg(error) from error
             raise
 
     def describe(self):

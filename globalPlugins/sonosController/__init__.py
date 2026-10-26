@@ -21,7 +21,7 @@ from .localfiles import LocalFiles
 from .menus import AlarmMenu, Favorites, SleepTimer
 from .modes import KEYS, MENU_MODES, MODE_ONLY, MODES, ROOM_MODES, SETTINGS_MODES, TOGGLE
 from .playbacksettings import PlaybackSettings
-from .relayhooks import Relay
+from .relayhooks import NeedsFFmpeg, Relay
 from .settings import Settings
 from .transfer import Transfer
 from .util import PAGE_STEP, valid_url
@@ -280,6 +280,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         message = transfer.move(1 if action == "transferRight" else -1)
                 else:
                     message = controller.execute(action)
+            except NeedsFFmpeg as refusal:
+                # The speaker refused a stream conversion would have played
+                # and there is no FFmpeg yet.  Asking belongs on the main
+                # thread, and so does replaying the URL if the user agrees.
+                wx.CallAfter(self._offerFFmpeg, generation, refusal, payload)
+                continue
             except Exception as error:
                 log.exception("Sonos operation failed")
                 if action in ("settingsStart", "playbackSettingsStart",
@@ -569,6 +575,85 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             if answer == wx.YES and generation == self.generation:
                 self._enqueue(("menuDeleteConfirmed", alarm_id))
         self._modal(generation, show)
+
+    def _offerFFmpeg(self, generation, refusal, payload):
+        """Offer the download after a speaker refused a convertible stream."""
+        if self.closed or not self.active or generation != self.generation:
+            return
+        from . import ffmpeg
+        answer = []
+
+        def ask(parent):
+            answer.append(wx.MessageBox(
+                _("{problem}\n\nPlaying it needs FFmpeg, a free "
+                  "program of about {size} MB, downloaded once. Download it now?").format(
+                      problem=refusal.problem, size=ffmpeg.size_mb()),
+                _("Sonos Controller"), wx.YES_NO | wx.ICON_QUESTION, parent))
+
+        # Asked and answered first: the download runs beside NVDA, not inside
+        # the modal block, so the layer is not held open for the whole of it.
+        self._modal(generation, ask)
+        if answer and answer[0] == wx.YES:
+            self._installFFmpeg(generation, payload)
+        else:
+            # Declining must not be silent: the user pressed play and is still
+            # waiting to hear what happened to the stream.
+            self._announce(generation, str(refusal.problem))
+
+    def _installFFmpeg(self, generation, payload):
+        """Download FFmpeg in a worker thread behind a progress dialog."""
+        from . import ffmpeg
+        import gui
+        total_mb = ffmpeg.size_mb()
+        cancelled = threading.Event()
+        gui.mainFrame.prePopup()
+        progress = wx.GenericProgressDialog(
+            _("Downloading FFmpeg"),
+            _("Downloaded {done} of {total} MB").format(done=0, total=total_mb),
+            maximum=100, parent=gui.mainFrame,
+            style=wx.PD_CAN_ABORT | wx.PD_AUTO_HIDE)
+        shown = [-1]
+
+        def update(percent, done_mb):
+            if cancelled.is_set():
+                return
+            going, _skip = progress.Update(
+                min(percent, 99),
+                _("Downloaded {done} of {total} MB").format(done=done_mb, total=total_mb))
+            if not going:
+                cancelled.set()
+
+        def onProgress(done, total):
+            percent = done * 100 // max(total, 1)
+            if percent != shown[0]:
+                shown[0] = percent
+                wx.CallAfter(update, percent, round(done / (1024 * 1024)))
+
+        def finished(error):
+            progress.Hide()
+            progress.Destroy()
+            gui.mainFrame.postPopup()
+            if error is None:
+                self.relay.recheck()
+                self._announce(generation, _("FFmpeg installed."))
+                if payload is not None and generation == self.generation:
+                    self._enqueue(("urlPlay", payload))
+                return
+            if not isinstance(error, ffmpeg.Cancelled):
+                self._announce(generation, _("Could not install FFmpeg. {error}")
+                               .format(error=error))
+
+        def work():
+            error = None
+            try:
+                ffmpeg.install(onProgress, cancelled.is_set)
+            except Exception as failure:
+                if not isinstance(failure, ffmpeg.Cancelled):
+                    log.exception("Installing FFmpeg failed")
+                error = failure
+            wx.CallAfter(finished, error)
+
+        threading.Thread(target=work, daemon=True).start()
 
     # -- shutdown --------------------------------------------------------
 

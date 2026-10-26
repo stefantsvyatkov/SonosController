@@ -11,8 +11,10 @@ requests a key press may make.
 
 import sys
 import time
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -433,6 +435,104 @@ class SpeakerNaming(EmulatorTest):
         session = self.layer()
         heard = session.press("kb:control+s")[-1]
         self.assertIn("Sonos Era 100", heard)
+
+
+class OptionalFFmpeg(EmulatorTest):
+    """A speaker refusing a convertible stream offers the download."""
+
+    class Relay:
+        """Stands in for the real relay: refuses until FFmpeg arrives."""
+
+        def __init__(self, error):
+            self.error = error
+            self.installed = False
+
+        def play_url(self, *args, **kwargs):
+            if self.installed:
+                return "Playing Radio"
+            raise self.error
+
+        def recheck(self):
+            self.installed = True
+
+        def stop(self):
+            pass
+
+        def close(self):
+            pass
+
+    def refused(self, session):
+        relayhooks = sys.modules[session.package.__name__ + ".relayhooks"]
+        problem = RuntimeError("Audio format rejected by the speaker.")
+        relay = self.Relay(relayhooks.NeedsFFmpeg(problem))
+        session.plugin.relay = relay
+        return relay
+
+    def play(self, session):
+        """Hand the worker a URL, as the address dialog does when accepted."""
+        player = types.SimpleNamespace()
+        player.group = types.SimpleNamespace(coordinator=player)
+        session.plugin._enqueue(("urlPlay", (player, "http://example.com/a.ogg")))
+        session.settle()
+        return session.speech.drain()
+
+    def test_saying_yes_downloads_and_replays_the_url(self):
+        session = self.layer()
+        session.select_room("Living Room")
+        relay = self.refused(session)
+        ffmpeg = sys.modules[session.package.__name__ + ".ffmpeg"]
+        session.responder.message_answer = session.wx.YES
+        session.speech.drain()
+        with patch.object(ffmpeg, "install", lambda *a, **k: "C:/ffmpeg.exe"):
+            heard = self.play(session)
+        self.assertTrue(session.responder.message_boxes, "nothing was offered")
+        offered = session.responder.message_boxes[-1][1]
+        self.assertIn("rejected by the speaker", offered)
+        self.assertIn(str(ffmpeg.size_mb()), offered, "the size belongs in the question")
+        self.assertIn("FFmpeg installed.", heard)
+        self.assertTrue(relay.installed, "the relay was not told to look again")
+        self.assertEqual(heard[-1], "Playing Radio", "the URL was not replayed")
+
+    def test_saying_no_reports_the_refusal_instead(self):
+        session = self.layer()
+        session.select_room("Living Room")
+        self.refused(session)
+        session.responder.message_answer = session.wx.NO
+        session.speech.drain()
+        heard = self.play(session)
+        self.assertEqual(heard[-1], "Audio format rejected by the speaker.")
+
+    def test_a_failed_download_is_reported_and_nothing_is_replayed(self):
+        session = self.layer()
+        session.select_room("Living Room")
+        self.refused(session)
+        ffmpeg = sys.modules[session.package.__name__ + ".ffmpeg"]
+        session.responder.message_answer = session.wx.YES
+        session.speech.drain()
+
+        def explode(*args, **kwargs):
+            raise OSError("the network went away")
+
+        with patch.object(ffmpeg, "install", explode):
+            heard = self.play(session)
+        self.assertIn("Could not install FFmpeg. the network went away", heard)
+        self.assertNotIn("Playing Radio", heard)
+
+    def test_cancelling_the_download_says_nothing_further(self):
+        session = self.layer()
+        session.select_room("Living Room")
+        self.refused(session)
+        ffmpeg = sys.modules[session.package.__name__ + ".ffmpeg"]
+        session.responder.message_answer = session.wx.YES
+        session.speech.drain()
+
+        def abandon(progress=None, cancelled=None):
+            raise ffmpeg.Cancelled()
+
+        with patch.object(ffmpeg, "install", abandon):
+            heard = self.play(session)
+        # The user cancelled; they know. Nothing is announced after that.
+        self.assertEqual([line for line in heard if "FFmpeg" in line], [])
 
 
 class Cost(EmulatorTest):

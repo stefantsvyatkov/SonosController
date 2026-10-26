@@ -57,13 +57,23 @@ same harness at speakers on the LAN.
 
 ## FFmpeg
 
-The public package converts streams a speaker refuses whenever the machine
-already has FFmpeg. `ffmpeg.py` finds it (configured path, PATH, the usual
-installer locations) and `relayhooks.py` decides whether to use it; with no
-FFmpeg present the add-on plays URLs directly, as it always did. Nothing is
-bundled and nothing is downloaded, so the package stays free of executables.
+The package ships no executable, which is what lets it be published: a binary
+inside an add-on brings its licence obligations along, and the store has no
+reason to trust one. `ffmpeg.py` instead looks for an FFmpeg the machine has
+(configured path, then PATH) and, failing that, downloads the pinned official
+Windows build into NVDA's configuration folder, checked against its SHA-256
+before anything is unpacked.
 
-The relay's own tests run with the main suite.
+Nothing is fetched until the user says yes. `relayhooks.py` raises
+`NeedsFFmpeg` when a speaker refuses a stream that conversion would have
+played, carrying the speaker's own complaint; the layer offers the download,
+and on success replays the URL. Declining leaves playback as it was.
+
+The pinned release is the one TikTok Live Reader installs, so a machine with
+both add-ons fetches one archive. `tests/test_ffmpeg.py` serves a stand-in
+archive from a local HTTP server, so no test touches the network; it covers a
+good download, a tampered one, cancellation, and that neither failure leaves a
+half-written FFmpeg behind. The relay's own tests run with the main suite.
 
 ## Installation for development
 
