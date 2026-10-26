@@ -241,16 +241,29 @@ class VendorIsolationTests(unittest.TestCase):
         self.assertEqual(binaries, [])
 
     def test_build_is_reproducible_and_excludes_source_vendor_tree(self):
+        """Build twice and compare, using the path the build itself reports.
+
+        This used to hash a hard-coded name in the project root.  The build has
+        written into build/ for a while now, so the test was hashing a package
+        left over from an earlier version: the two digests always matched
+        because nothing had rebuilt that file, and the content checks below
+        were inspecting a stale archive.  Taking the path from the build's own
+        output means the two cannot drift apart again.
+        """
         command = [sys.executable, str(ROOT / "tools" / "build.py")]
+        digests = []
+        packages = []
         for _ in range(2):
             result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            digest = hashlib.sha256((ROOT / "sonosController-0.1.0.nvda-addon").read_bytes()).hexdigest()
-            if "first_digest" not in locals():
-                first_digest = digest
-            else:
-                self.assertEqual(digest, first_digest)
-        with zipfile.ZipFile(ROOT / "sonosController-0.1.0.nvda-addon") as archive:
+            package = Path(result.stdout.strip().splitlines()[-1])
+            self.assertTrue(package.is_file(), f"the build reported {package}, which is not there")
+            packages.append(package)
+            digests.append(hashlib.sha256(package.read_bytes()).hexdigest())
+        self.assertEqual(packages[0], packages[1], "the build moved its output between runs")
+        self.assertEqual(digests[0], digests[1], "two identical builds differ")
+
+        with zipfile.ZipFile(packages[0]) as archive:
             names = archive.namelist()
         self.assertIn("globalPlugins/sonosController/_vendor/vendor-manifest.json", names)
         self.assertFalse(any(name.startswith("globalPlugins/sonosController/lib/") for name in names))
@@ -258,19 +271,27 @@ class VendorIsolationTests(unittest.TestCase):
             name for name in names
             if Path(name).suffix.lower() in {".pyd", ".dll", ".exe"}
         }
-        self.assertEqual(native, set())
-        self.assertNotIn("globalPlugins/sonosController/relay.py", names)
-        self.assertNotIn("globalPlugins/sonosController/relay_urls.py", names)
+        self.assertEqual(native, set(), "the public package must carry no executables")
+        # relay.py and relay_urls.py are part of the public package: pure Python
+        # that does nothing until the machine has an FFmpeg of its own.  The
+        # guard that matters is the one above, that nothing executable ships.
+        self.assertIn("globalPlugins/sonosController/relay.py", names)
+        self.assertIn("globalPlugins/sonosController/relay_urls.py", names)
+        # What must never ship is the executable itself, nor its licence folder,
+        # which belong only to the personal build.
         self.assertFalse(any(name.startswith("globalPlugins/sonosController/bin/") for name in names))
         self.assertFalse(any(name.startswith("thirdParty/ffmpeg/") for name in names))
-        with zipfile.ZipFile(ROOT / "sonosController-0.1.0.nvda-addon") as archive:
-            text = b"\n".join(
-                archive.read(name).lower()
-                for name in names
-                if Path(name).suffix.lower() in {".py", ".md", ".html", ".ini", ".txt"}
-            )
-        self.assertNotIn(b"ffmpeg", text)
-        self.assertNotIn(b"relaymanager", text)
+        # The two packages used to be told apart by scanning the text for
+        # "ffmpeg" and "relaymanager".  Both words belong in the public package
+        # now: it looks for an FFmpeg the machine already has, and says so in
+        # its own documentation.  What separates the personal build is the
+        # executable it adds, so check for that by name as well as by folder,
+        # in case a future build puts it somewhere else.
+        forbidden = {"ffmpeg.exe", "ffmpeg.sha256", "ffmpeg-components.txt",
+                     "ffmpeg-imports.txt"}
+        shipped = {Path(name).name.lower() for name in names}
+        self.assertEqual(shipped & forbidden, set(),
+                         "the public package must not carry a bundled FFmpeg")
 
 
 if __name__ == "__main__":
