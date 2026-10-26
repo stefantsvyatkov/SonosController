@@ -8,10 +8,12 @@ import time
 from pathlib import Path
 
 from . import fakewx, nvda
-from .sonos import Household, build_alarms_module, build_soco_module
+from .sonos import build_alarms_module, build_soco_module, default_household
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = "globalPlugins.sonosController"
+
+__all__ = ["Session", "Speech", "TrackedQueue", "default_household"]
 
 
 class TrackedQueue(queue.Queue):
@@ -249,27 +251,3 @@ class Session:
         if reset:
             self.household.reset_calls()
         return total
-
-
-def default_household(latency=0.0):
-    """A small household that exercises most of the add-on."""
-    house = Household(latency=latency)
-    living = house.add("Living Room", "Sonos Era 100", ip="192.168.1.10")
-    kitchen = house.add("Kitchen", "Sonos Era 100", ip="192.168.1.11")
-    house.add("Office", "Sonos Move 2", ip="192.168.1.12")
-    house.add("TV Room", "Sonos Arc", ip="192.168.1.13")
-
-    living.playback.state = "PLAYING"
-    living.playback.uri = "x-rincon-queue:%s#0" % living.uid
-    living.playback.title = "Blue Monday"
-    living.playback.artist = "New Order"
-    living.playback.duration = 268
-    living.playback.position = 42
-    living.playback.queue_position = 1
-    kitchen.playback.state = "STOPPED"
-
-    house.add_favorite("Test Radio", "x-sonosapi-stream:test?sid=254")
-    house.add_favorite("Jazz Playlist", "file:///jazz",
-                       "object.container.playlistContainer")
-    house.add_alarm(living, start="07:30:00", recurrence="WEEKDAYS", volume=18)
-    return house

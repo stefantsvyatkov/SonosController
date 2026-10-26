@@ -2,8 +2,10 @@
 /build/
 *.nvda-addon
 
-# Local tooling that is fetched, not authored.
+# Local tooling that is fetched, not authored, and what the sandbox stages:
+# NVDA installers, the built add-on, the portable Python and each run results.
 /.tools/
+/artifacts/
 
 # Generated documentation and translation artefacts.
 doc/*/readme.html

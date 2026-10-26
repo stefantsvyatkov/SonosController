@@ -171,6 +171,31 @@ class Errors(EmulatorTest):
         heard = session.press("kb:NVDA+shift+control+s")
         self.assertIn("No Sonos rooms found.", heard)
 
+    def test_an_expected_message_is_not_logged_as_a_fault(self):
+        """Found by running the empty household in real NVDA.
+
+        Every exception used to be logged with a traceback, including the
+        messages the add-on raises on purpose and then speaks. NVDA's log is
+        what users are asked to send to developers, so an expected condition
+        must not look like a crash in it.
+        """
+        house = default_household()
+        house.players.clear()
+        session = self.session(household=house)
+        session.press("kb:NVDA+shift+control+s")
+        faults = [text for level, text in session.log.records
+                  if level in ("error", "exception")]
+        self.assertEqual(faults, [], "an expected message was logged as a fault")
+
+    def test_an_unexpected_failure_is_still_logged_as_a_fault(self):
+        house = default_household()
+        session = self.layer(household=house)
+        house.fail("GetPositionInfo", OSError("unreachable"))
+        session.press("kb:p")
+        faults = [text for level, text in session.log.records
+                  if level in ("error", "exception")]
+        self.assertTrue(faults, "a real failure must still reach NVDA's log")
+
 
 class FixedDefects(EmulatorTest):
     """Behaviour the review found wrong, now asserted the right way round."""

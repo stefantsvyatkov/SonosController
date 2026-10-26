@@ -287,7 +287,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 wx.CallAfter(self._offerFFmpeg, generation, refusal, payload)
                 continue
             except Exception as error:
-                log.exception("Sonos operation failed")
+                # A RuntimeError or ValueError carrying a message is one the
+                # add-on raised on purpose and is about to speak: an expected
+                # condition, not a fault. NVDA's log is what users are asked to
+                # send to developers, so filling it with tracebacks for "No
+                # Sonos rooms found." would bury the faults that matter.
+                if isinstance(error, (RuntimeError, ValueError)) and str(error):
+                    log.debug("Sonos: %s", error)
+                else:
+                    log.exception("Sonos operation failed")
                 if action in ("settingsStart", "playbackSettingsStart",
                               "menuFavoritesStart", "menuTimerStart", "menuAlarmsStart"):
                     if action.startswith("menu"):

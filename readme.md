@@ -18,6 +18,7 @@ added later without touching the code.
 | `tests/` | unit tests and emulator-driven end-to-end tests |
 | `tools/` | build, vendoring, and the NVDA emulator |
 | `tools/harness/` | headless NVDA + simulated Sonos household ([readme](tools/harness/README.md)) |
+| `sandbox/` | the same add-on in real NVDA, in a Windows Sandbox ([readme](sandbox/README.md)) |
 | `research/` | hardware test notes, radio surveys, prototypes; not shipped |
 | `build/` | generated packages and the pip staging area; not committed |
 
@@ -54,6 +55,16 @@ household, so a test can press keys and read back what NVDA would say. It also
 counts speaker requests, which is how the responsiveness limits in
 `tests/test_sonos_emulator.py` are set. `Session(network="real")` points the
 same harness at speakers on the LAN.
+
+What a fake wx cannot tell you is what a screen reader actually says, or
+whether a control raises the events NVDA listens for. `sandbox/` answers that
+in real NVDA: it builds the package, unpacks it into a Windows Sandbox, and
+presses real keys at it ([readme](sandbox/README.md)).
+
+```bash
+.\sandbox\Run-Sandbox.ps1 -Scenario alarms
+.\sandbox\Run-Sandbox.ps1 -Stop
+```
 
 ## FFmpeg
 
