@@ -405,7 +405,7 @@ class Slider(Window):
     def native_key(self, name):
         # Win32 trackbar: VK_LEFT/VK_UP decrement and VK_RIGHT/VK_DOWN
         # increment, with Page Up/Page Down following the same direction.
-        # Measured against real wxWidgets in verify_win32_keys.py, so a
+        # Measured against real wxWidgets while this harness was written, so a
         # horizontal slider lowers its value on the Up arrow - unless the
         # control has TBS_DOWNISLEFT (0x400), which makes Up and Page Up raise
         # it (the Win32 documentation; checked with NVDA in the sandbox).

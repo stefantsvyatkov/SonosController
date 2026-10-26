@@ -19,7 +19,6 @@ added later without touching the code.
 | `tools/` | build, vendoring, and the NVDA emulator |
 | `tools/harness/` | headless NVDA + simulated Sonos household ([readme](tools/harness/README.md)) |
 | `research/` | hardware test notes, radio surveys, prototypes; not shipped |
-| `experimental/ffmpeg-relay/` | the same add-on with an FFmpeg bundled in; not shipped |
 | `build/` | generated packages and the pip staging area; not committed |
 | `site_scons/`, `sconstruct`, `templateDocs/` | retained upstream add-on template; unused by this build |
 
@@ -36,9 +35,15 @@ place a release number lives.
 
 ### Dependencies
 
-Pinned in `requirements-sonos.txt` and installed into `build/vendor-src/`,
-which is outside the add-on so NVDA never loads them from a development
-checkout. `python tools/vendorize.py` regenerates the private `_vendor` tree
+Pinned in `requirements-sonos.txt` and installed outside the add-on, so NVDA
+never loads them from a development checkout:
+
+```bash
+python -m pip install -r requirements-sonos.txt --target build/vendor-src
+```
+
+That staging area is only needed to re-pin a dependency. `python
+tools/vendorize.py` regenerates the private `_vendor` tree from it
 and `python tools/vendorize.py --check` audits it. The generated tree replaces
 SoCo's two lxml uses with standard-library XML, so the package ships no native
 extensions.
@@ -59,23 +64,7 @@ installer locations) and `relayhooks.py` decides whether to use it; with no
 FFmpeg present the add-on plays URLs directly, as it always did. Nothing is
 bundled and nothing is downloaded, so the package stays free of executables.
 
-`experimental/ffmpeg-relay/` builds a personal variant for a machine without
-FFmpeg installed:
-
-```bash
-python experimental/ffmpeg-relay/tools/build.py
-```
-
-That package is the public source byte-for-byte plus one added file, the
-FFmpeg executable, which `ffmpeg.bundled_path()` picks up. Because the code
-does not differ, refactoring cannot silently break the variant.
-
-The relay's own tests run with the main suite. Two further tests cover the
-personal build itself and need the executable present, so they stay separate:
-
-```bash
-python -m unittest discover -s experimental/ffmpeg-relay/tests
-```
+The relay's own tests run with the main suite.
 
 ## Installation for development
 

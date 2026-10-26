@@ -61,7 +61,8 @@ def alarm_volume_inverted():
         verdict = "still INVERTED" if after_up < start else "correct"
         print(f"\n  verdict: the arrows are {verdict}. Windows moves a trackbar")
         print("           the other way, so the dialog corrects it while keeping")
-        print("           an ordinary slider. See verify_win32_keys.py.")
+        print("           an ordinary slider. The alarms scenario checks it")
+        print("           in real NVDA; see sandbox/.")
         return False
 
     session.on_dialog(inspect)

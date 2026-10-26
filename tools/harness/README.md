@@ -14,7 +14,6 @@ tools/harness/
   fakewx.py            fake wx that models Win32 control keyboard behaviour
   sonos.py             simulated speakers, groups, favorites, alarms, transport
   scenarios.py         runnable reproductions of the code-review findings
-  verify_win32_keys.py cross-checks fakewx against real wxPython
 ```
 
 ## Running it
@@ -25,12 +24,7 @@ python tools/harness/scenarios.py group_up_cancels   # one scenario
 python -m unittest tests.test_sonos_emulator -v      # the regression tests
 ```
 
-The emulator needs nothing but the standard library.  `verify_win32_keys.py`
-additionally needs wxPython:
-
-```bash
-.tools/harness-venv/Scripts/python.exe tools/harness/verify_win32_keys.py
-```
+The emulator needs nothing but the standard library.
 
 ## Writing a check
 
@@ -107,10 +101,10 @@ against speakers you are willing to have change state.
 - SSDP discovery is stubbed in `sim` mode; the saved-address reconnect path
   runs the real code in `discovery.py`.
 - `fakewx` models focus, visibility, tab order and key handling, not layout.
-  Anything about sizing or painting has to be checked in real wx.
-  `probe_alarm_dialog.py` and `verify_win32_keys.py` do exactly that: they
-  build the real dialog with real wxPython and post keys straight to each
-  control's window handle, which is how the inverted arrows were pinned down.
+  Anything about sizing, painting or what a screen reader actually says has
+  to be checked in real wx.  Three probes used to do that against a wxPython
+  virtual environment; `sandbox/` replaced them with real NVDA, which answers
+  the same questions without a second wx to keep in step.
 - Capability lookups (`is_soundbar`, `has_subwoofer`, ...) count as requests,
   because SoCo asks the device for them.
 - The `Alarms` registry in `sonos.py` is a singleton, like SoCo's, so a test

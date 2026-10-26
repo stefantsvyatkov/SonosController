@@ -1,7 +1,6 @@
 # Build output and the pip-installed dependency staging area.
 /build/
 *.nvda-addon
-*-corresponding-source.zip
 .sconsign.dblite
 
 # Local tooling that is fetched, not authored.
@@ -19,9 +18,8 @@ doc/*/readme.html
 __pycache__/
 *.egg-info
 .venv/
+.ruff_cache/
 
-# The FFmpeg relay keeps its binaries and generated packages out of the
-# repository; tools/experimental.py fetches and builds them on demand.
-/experimental/ffmpeg-relay/bin/
-/experimental/ffmpeg-relay/thirdParty/ffmpeg/*.exe
-/experimental/ffmpeg-relay/historical-prototype/
+# Records of the first relay study: measurements from the real speakers,
+# which hold addresses from the test machine, so they stay out of Git.
+/research/relay-prototype/
