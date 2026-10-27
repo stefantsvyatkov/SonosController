@@ -289,7 +289,7 @@ class FixedDefects(EmulatorTest):
                                 "home": "00", "down at the start": "23"})
 
     def test_number_dropdowns_wrap_at_both_ends(self):
-        """Every numeric field in the alarm window is a ring, pages included."""
+        """The alarm's hour and minute are a ring, pages included."""
         for name, last in (("Hour", "23"), ("Minute", "59")):
             with self.subTest(field=name):
                 session = self.layer()
@@ -314,6 +314,40 @@ class FixedDefects(EmulatorTest):
                 self.assertEqual(seen["back down again"], last)
                 self.assertEqual(seen["page past the top"], "04",
                                  "a page past the last value lands five in")
+
+    def test_duration_dropdowns_stop_at_both_ends(self):
+        """A duration is a span, not a clock: its fields stop instead of wrapping."""
+        for name, last in (("Duration hour", "23"), ("Duration minute", "59")):
+            with self.subTest(field=name):
+                session = self.layer()
+                session.press("kb:a")
+                seen = {}
+
+                def inspect(dialog, seen=seen):
+                    mode = dialog.focus_on("Duration")
+                    while mode.GetStringSelection() != "Custom":
+                        dialog.press("down")
+                    field = dialog.focus_on(name)
+                    dialog.press("end")
+                    dialog.press("up")
+                    seen["up at the top"] = field.GetStringSelection()
+                    dialog.press("end")
+                    dialog.press("pageup")
+                    seen["page at the top"] = field.GetStringSelection()
+                    dialog.press("home")
+                    dialog.press("down")
+                    seen["down at the bottom"] = field.GetStringSelection()
+                    dialog.press("pagedown")
+                    seen["page at the bottom"] = field.GetStringSelection()
+                    dialog.press("pageup")
+                    seen["page up from the bottom"] = field.GetStringSelection()
+                    return False
+
+                session.on_dialog(inspect)
+                session.press("kb:enter")
+                self.assertEqual(seen, {"up at the top": last, "page at the top": last,
+                                        "down at the bottom": "00", "page at the bottom": "00",
+                                        "page up from the bottom": "05"})
 
     def test_a_new_alarm_repeats_once(self):
         """A one-off alarm is the safe default; it cannot keep going off unnoticed."""

@@ -225,6 +225,17 @@ def open_dialog(run, combo, title, pattern, name):
     return run.hear(pattern, name, timeout=6)
 
 
+def tab_to(run, pattern, name, tries=8):
+    """Tab through a dialog until a field matching ``pattern`` is announced."""
+    for _attempt in range(tries):
+        found = run.press_and_hear("tab", pattern, name, timeout=2)
+        if found:
+            return found
+        run.results.pop()
+    run.check(name, False)
+    return None
+
+
 def enter_layer(run):
     """Turn the layer on and wait for the room it reports."""
     run.press_and_hear(TOGGLE, r"^Connecting\.$", "layer announces it is connecting")
@@ -275,7 +286,7 @@ def scenario_pagekeys(run):
 
 
 def scenario_alarms(run):
-    """The alarm dialog in real NVDA: the arrows, the wrap and the default."""
+    """The alarm dialog in real NVDA: the arrows, the wrap, the default and the duration."""
     if not run.wait_for_nvda():
         return
     enter_layer(run)
@@ -298,16 +309,22 @@ def scenario_alarms(run):
 
     # Repeat must offer the one-off alarm first, so a mistake cannot keep
     # going off unnoticed.
-    found = None
-    for _attempt in range(8):
-        found = run.press_and_hear("tab", r"Repeat", "Repeat is reachable", timeout=2)
-        if found:
-            break
-        run.results.pop()
+    found = tab_to(run, r"Repeat", "Repeat is reachable")
     if found:
         run.check("a new alarm repeats Once by default", "Once" in found, repr(found))
-    else:
-        run.check("Repeat is reachable", False)
+
+    # A duration is a span, not a clock: Up on its largest hour stays there, so
+    # the Down after it says 22.  Had it wrapped to 00, Down would say 23.
+    if tab_to(run, r"Duration", "Duration is reachable"):
+        run.press_and_hear("down", r"Custom", "a custom duration can be chosen")
+        if run.press_and_hear("tab", r"Duration hour", "the duration hour follows"):
+            top = run.number("end", "End gives the largest duration hour")
+            press("up")
+            time.sleep(1)
+            below = run.number("down", "Down from there is spoken")
+            if top is not None and below is not None:
+                run.check("the duration stops at its largest hour", (top, below) == (23, 22),
+                          f"End said {top}, Up then Down said {below}")
     run.press_and_hear("escape", r".", "the dialog closes")
 
 

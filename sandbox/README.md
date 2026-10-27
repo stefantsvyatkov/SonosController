@@ -67,7 +67,8 @@ failing as a sandbox run that quietly talked to nothing.
 - `pagekeys` - Page Up and Page Down move five, in the arrows' direction, both
   for the volume and inside the speaker settings.
 - `alarms` - the alarm dialog: Up gives the next larger hour, the hours wrap
-  round past the smallest, and a new alarm repeats Once.
+  round past the smallest, a new alarm repeats Once, and a custom duration
+  stops at its largest hour instead of wrapping.
 - `settings` - the settings sweep, and the room named once rather than twice
   ("Move 2, Sonos Move 2").
 - `norooms` - an empty household is reported instead of hanging.

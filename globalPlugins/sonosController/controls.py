@@ -8,9 +8,10 @@
 * :class:`NumberChoice` is a standard dropdown of ordered numbers (hours,
   minutes).  While it is closed, Up takes the next larger value, Down the next
   smaller, Home the smallest and End the largest; Page Up and Page Down move
-  :data:`PAGE_STEP` values in a list long enough for that.  The values form a
-  ring: past the largest comes the smallest again.  Open, it is walked as
-  it is shown.  Nothing is reported by the add-on: the selection is put silently
+  :data:`PAGE_STEP` values in a list long enough for that.  The values of a
+  clock (the alarm's hour and minute) form a ring: past the largest comes the
+  smallest again.  A span (the duration) stops at its ends.  Open, it is
+  walked as it is shown.  Nothing is reported by the add-on: the selection is put silently
   next to the target and the native control is given one arrow key towards it,
   so the control makes the last step itself and raises the value, selection and
   events a screen reader listens for.  BST Radio's NumberComboBox does the same.
@@ -60,24 +61,33 @@ class Slider(wx.Slider):
 class NumberChoice(wx.Choice):
     """A dropdown of ordered numbers, lowest first, where Up gives the next larger one."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, wraps=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self._wraps = wraps
         self._forwarding = False
         self.Bind(wx.EVT_KEY_DOWN, self._onKey)
 
     def target(self, key):
         """The item ``key`` goes to while the list is closed, or None to leave the key as it is.
 
-        The list is a ring: past the largest value comes the smallest again.
-        An hour runs that way anyway, and it saves holding a key down to get
-        from one end to the other.  Home and End still jump to the extremes.
+        With ``wraps`` the list is a ring: past the largest value comes the
+        smallest again.  An hour runs that way anyway, and it saves holding a
+        key down to get from one end to the other.  Without it the keys stop at
+        the ends, as a duration should: 23 hours is not one step from none.
+        Home and End jump to the extremes either way.
         """
         count, current = self.GetCount(), self.GetSelection()
         page = PAGE_STEP if count >= PAGED_LENGTH else 0
-        step = (current + 1) % count
-        back = (current - 1) % count
-        forward_page = (current + page) % count
-        back_page = (current - page) % count
+        if self._wraps:
+            step = (current + 1) % count
+            back = (current - 1) % count
+            forward_page = (current + page) % count
+            back_page = (current - page) % count
+        else:
+            step = min(current + 1, count - 1)
+            back = max(current - 1, 0)
+            forward_page = min(current + page, count - 1)
+            back_page = max(current - page, 0)
         return {
             wx.WXK_UP: step,
             wx.WXK_NUMPAD_UP: step,
@@ -131,6 +141,7 @@ class NumberChoice(wx.Choice):
         return _user32 is not None and bool(_user32.SendMessageW(self.GetHandle(), CB_GETDROPPEDSTATE, 0, 0))
 
 
-def numbers(parent, count, start=0):
-    """A zero-padded number dropdown, for example 00 to 23."""
-    return NumberChoice(parent, choices=[f"{i:02d}" for i in range(start, start + count)])
+def numbers(parent, count, start=0, wraps=False):
+    """A zero-padded number dropdown, for example 00 to 23; ``wraps`` makes it a ring."""
+    return NumberChoice(parent, choices=[f"{i:02d}" for i in range(start, start + count)],
+                        wraps=wraps)

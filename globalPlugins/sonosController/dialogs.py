@@ -75,8 +75,8 @@ class AlarmDialog(wx.Dialog):
                      _("Thursday"), _("Friday"), _("Saturday")]
 
         start = alarm.start_time if alarm else None
-        hours = grid.add("timeHour", _("Hour"), lambda: numbers(panel, 24))
-        minutes = grid.add("timeMinute", _("Minute"), lambda: numbers(panel, 60))
+        hours = grid.add("timeHour", _("Hour"), lambda: numbers(panel, 24, wraps=True))
+        minutes = grid.add("timeMinute", _("Minute"), lambda: numbers(panel, 60, wraps=True))
         hours.SetSelection(start.hour if start else 7)
         minutes.SetSelection(start.minute if start else 0)
 
