@@ -33,7 +33,7 @@
 param(
     [ValidateSet("smoke", "pagekeys", "alarms", "settings", "norooms")]
     [string]$Scenario = "smoke",
-    [string[]]$Nvda = @("2026.2"),
+    [string[]]$Nvda = @("2026.3"),
     [ValidateSet("default", "empty")]
     [string]$Household = "default",
     [string]$Python = ".tools\python313\python.exe",
