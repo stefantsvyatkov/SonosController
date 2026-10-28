@@ -1,6 +1,5 @@
 """Package the junction-compatible root layout without build dependencies."""
 from pathlib import Path
-import html
 import sys
 import zipfile
 
@@ -46,6 +45,8 @@ def _verify_archive(output):
             raise RuntimeError("The add-on contains duplicate archive entries")
         if "globalPlugins/sonosController/_vendor/vendor-manifest.json" not in names:
             raise RuntimeError("The private vendor manifest is missing from the add-on")
+        if "doc/en/readme.html" not in names:
+            raise RuntimeError("The user guide is missing from the add-on")
         forbidden = [
             name for name in names
             if name.startswith(forbidden_roots)
@@ -73,23 +74,6 @@ def _output_path():
 
 def build():
     check_vendor_tree()
-    for language in ("en", "bg"):
-        directory = ROOT / "doc" / language
-        source = (directory / "readme.md").read_text(encoding="utf-8")
-        body = []
-        for line in source.splitlines():
-            if line.startswith("# "):
-                body.append("<h1>" + html.escape(line[2:]) + "</h1>")
-            elif line.startswith("## "):
-                body.append("<h2>" + html.escape(line[3:]) + "</h2>")
-            elif line:
-                body.append("<p>" + html.escape(line) + "</p>")
-        (directory / "readme.html").write_text(
-            f'<!doctype html><html lang="{language}"><meta charset="utf-8">'
-            '<title>Sonos Controller</title><body>' + "\n".join(body) + '</body></html>',
-            encoding="utf-8",
-            newline="\n",
-        )
     output = _output_path()
     files = [ROOT / "manifest.ini", ROOT / "COPYING.txt"]
     for folder in ("globalPlugins", "doc"):

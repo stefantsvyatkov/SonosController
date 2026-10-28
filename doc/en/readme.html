@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sonos Controller</title>
+<style>
+body {
+    font-family: Verdana, sans-serif;
+    font-size: 1.2rem;
+    line-height: 1.8;
+    color: #000;
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 20px;
+}
+ul {
+    margin-bottom: 20px;
+}
+li {
+    margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<h1>Sonos Controller</h1>
+
+<p>This add-on controls Sonos speakers from the keyboard. It talks to them directly over the local network.</p>
+
+<p>You need NVDA 2026.2 or later on 64-bit Windows. The speakers must be on the same network as the computer. The add-on speaks English.</p>
+
+<h2>Getting started</h2>
+
+<p>Press NVDA+Control+Shift+S to turn on the Sonos layer. The add-on finds the speakers and names the first room. Press the same keys again to turn the layer off.</p>
+
+<p>While the layer is on, the keys below control Sonos. Any other key turns the layer off and does its usual job. Escape leaves a menu. In the main layer, Escape turns the layer off.</p>
+
+<p>Press a menu's key again to leave that menu. A key of the main layer leaves the menu and does its job.</p>
+
+<h2>Rooms and volume</h2>
+
+<ul>
+<li>Left and Right Arrow choose a room or group. Its volume is spoken.</li>
+<li>Up and Down Arrow change the volume by 1.</li>
+<li>Page Up and Page Down change it by 5.</li>
+<li>M mutes and unmutes.</li>
+</ul>
+
+<p>Page Up and Page Down move 5 wherever the arrows change a value.</p>
+
+<h2>Playback</h2>
+
+<ul>
+<li>Space plays and pauses. A stream that cannot pause is stopped.</li>
+<li>Control+Left and Control+Right go to the previous and next track.</li>
+<li>Control+Shift+Left and Control+Shift+Right jump 10 seconds back and forward.</li>
+<li>P says what is playing. Press it twice to copy the title and artist.</li>
+<li>E says the elapsed time. R says the remaining time.</li>
+<li>B says the battery level of a portable speaker.</li>
+</ul>
+
+<p>Some sources do not allow every command. The add-on then says so.</p>
+
+<h2>Groups and transfer</h2>
+
+<p>Press G to group rooms. Left and Right choose a room. Space adds or removes it. Enter applies the group. At least one room stays in it.</p>
+
+<p>Press T to move the music to another room. Left and Right choose a free room. Space moves the music there. The new room gets the same volume.</p>
+
+<p>In both, Up and Down still change the volume.</p>
+
+<h2>Favorites, addresses and files</h2>
+
+<p>Press F for your Sonos Favorites. Up and Down choose one. Enter plays it.</p>
+
+<p>Press U to play an audio address. A link on the clipboard is filled in for you. Direct streams and M3U or PLS playlists work. Ordinary web pages do not.</p>
+
+<p>Press Control+F to play a file or a folder from this computer. A folder can hold up to 1000 audio files. Files play in name order. The music replaces the current queue.</p>
+
+<p>NVDA sends the files to the speaker itself. Keep NVDA running and the computer awake while they play. Windows Firewall must let the speakers reach NVDA.</p>
+
+<h2>Alarms</h2>
+
+<p>Press A for the alarms. Up and Down choose an alarm. Space turns it on or off. Enter edits it. N makes a new one. Delete removes it after you confirm.</p>
+
+<p>The alarm dialog starts on the hour. Tab moves between the fields. The fields are the time, the room, how often it repeats, the volume, the sound and how long it plays.</p>
+
+<p>In the hour and minute lists, Up gives the next larger number. After the largest comes the smallest again. Page Up and Page Down move 5. Home and End go to the first and last number.</p>
+
+<p>A custom duration stops at its largest and smallest value. The volume slider goes from 0 to 100.</p>
+
+<p>A new alarm repeats once. The speaker's own clock decides when it rings.</p>
+
+<h2>Sleep timer</h2>
+
+<p>Press S for the sleep timer. Left and Right choose Off or 5 to 90 minutes. Down goes to a custom time of 1 to 90 minutes. Enter starts the timer.</p>
+
+<h2>Speaker and queue settings</h2>
+
+<p>Press Control+S for the settings of a speaker. Up and Down choose a setting. Left and Right change it at once. The speaker is named when you reach it.</p>
+
+<p>Only the settings a speaker reports are shown. They can include:</p>
+
+<ul>
+<li>Bass and treble, from -10 to 10.</li>
+<li>Loudness, the status light and the touch controls.</li>
+<li>Balance, when both channels can be read.</li>
+<li>Trueplay, when the speaker has already been tuned.</li>
+<li>Night mode, speech enhancement and TV dialog sync on a soundbar.</li>
+<li>Surround and subwoofer levels when those speakers are attached.</li>
+<li>The subwoofer crossover on a Sonos Amp.</li>
+<li>Fixed line output on a Connect or Port.</li>
+</ul>
+
+<p>Press Control+P for queue settings: shuffle, repeat and crossfade. These work only when the Sonos queue is playing.</p>
+
+<h2>Streams a speaker refuses</h2>
+
+<p>A speaker cannot play some streams, often Ogg or Opus. The add-on can convert them with FFmpeg.</p>
+
+<p>The speaker always gets the stream first. The add-on offers FFmpeg only when the speaker refuses it. If the computer has no FFmpeg, the add-on offers to download it.</p>
+
+<p>The download is about 109 MB. It happens once and can be cancelled. The file is checked before it is used. It is kept in NVDA's settings folder, so an update of the add-on keeps it.</p>
+
+<p>To use your own FFmpeg, set ffmpegPath under sonosController in nvda.ini.</p>
+
+<h2>Good to know</h2>
+
+<ul>
+<li>A stereo pair is one room.</li>
+<li>Turn the layer off and on again to find new speakers.</li>
+<li>The add-on remembers the speakers' addresses. The next start is faster.</li>
+<li>The add-on does not run on secure screens.</li>
+</ul>
+
+<h2>License</h2>
+
+<p>Distributed under the GNU General Public License 2.0.</p>
+
+</body>
+</html>

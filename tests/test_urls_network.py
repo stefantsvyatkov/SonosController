@@ -1,6 +1,6 @@
 """How the URL probe reports network failures, and which servers it tolerates.
 
-A station on https://example.com could not be played: the server still
+A station on an HTTPS address could not be played: the server still
 offers only a key exchange OpenSSL 3 has dropped from its default cipher list,
 so the handshake failed and the raw requests exception reached the user as
 "Command failed. Try again."
