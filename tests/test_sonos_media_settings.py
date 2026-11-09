@@ -103,7 +103,7 @@ class SettingsTests(unittest.TestCase):
         self.assertIn("Sonos Beam", settings.describe())
 
     def test_arc_ultra_with_satellites(self):
-        p = self.model("Sonos Arc Ultra", is_soundbar=True, is_arc_ultra_soundbar=True,
+        p = self.model("Sonos Arc Ultra", is_soundbar=True, is_ultra_soundbar=True,
                        has_satellites=True, _ht_sat_chan_map="rear:LR;rear2:RR;sub:SW",
                        has_subwoofer=True, surround_enabled=True, sub_enabled=True,
                        sub_gain=0, speech_enhance_enabled=True, dialog_mode=True)

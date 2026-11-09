@@ -68,7 +68,7 @@ def patch_discovery(namespace):
     path still runs the add-on's own code.
     """
     house = household()
-    known = {player.ip_address for player in house.players}
-    namespace["reachable"] = lambda ip: ip in known
+    namespace["reachable"] = lambda ip, port=1400: any(
+        p.ip_address == ip and p.port == port and p.online for p in house.players)
     namespace["discover_rooms"] = lambda soco, timeout=4: [
-        player for player in house.players if player.is_visible]
+        player for player in house.players if player.is_visible and player.online]

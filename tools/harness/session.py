@@ -136,10 +136,10 @@ class Session:
 
     def _patch_discovery(self):
         household = self.household
-        known = {p.ip_address for p in household.players}
-        self.discovery.reachable = lambda ip: ip in known
+        self.discovery.reachable = lambda ip, port=1400: any(
+            p.ip_address == ip and p.port == port and p.online for p in household.players)
         self.discovery.discover_rooms = lambda soco, timeout=4: [
-            p for p in household.players if p.is_visible]
+            p for p in household.players if p.is_visible and p.online]
 
     def close(self):
         try:

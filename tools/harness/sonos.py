@@ -23,36 +23,59 @@ SETTING_KEYS = {
     "cross_fade", "shuffle", "repeat",
 }
 
+# SoCo's own lists (soco.core.SOUNDBARS and ULTRA_SOUNDBARS): SoCo decides from
+# the model name alone, and so does this.  A test keeps the copies equal.
+SOUNDBARS = ("arc", "arc sl", "arc ultra", "beam", "beam ultra", "playbase", "playbar",
+             "ray", "sonos amp")
+ULTRA_SOUNDBARS = ("arc ultra", "beam ultra")
+
+_COMMON = ["volume", "mute", "bass", "treble", "loudness", "status_light", "buttons_enabled",
+           "balance", "trueplay", "shuffle", "repeat", "cross_fade"]
+_SOUNDBAR = _COMMON + ["night_mode", "dialog_mode", "audio_delay"]
+_HOME_THEATER = ["surround_enabled", "surround_full_volume_enabled",
+                 "surround_volume_tv", "surround_volume_music"]
+_SUB = ["sub_enabled", "sub_gain"]
+#: What a component without touch controls says when asked about them.
+_NO_BUTTONS = {"buttons_enabled": "401"}
+
+#: The products the add-on is meant for, as SoCo sees them.  ``settings`` are the
+#: ones the speaker answers; asking for another raises AttributeError, or the
+#: UPnP error named in ``refuses``.  Surround and subwoofer settings come from
+#: the bonded speakers (Household.home_theater and stereo_pair), not from here.
 MODELS = {
-    "Sonos Era 100": {
-        "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "trueplay"],
-        "flags": {},
-    },
-    "Sonos Arc": {
-        "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "night_mode", "dialog_mode", "audio_delay",
-                     "surround_enabled", "surround_full_volume_enabled",
-                     "surround_volume_tv", "surround_volume_music",
-                     "sub_enabled", "sub_gain"],
-        "flags": {"is_soundbar": True, "has_satellites": True, "has_subwoofer": True,
-                  "_ht_sat_chan_map": "LF,RF;RINCON_1:LR;RINCON_2:RR"},
-    },
-    "Sonos Move 2": {
-        "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance"],
-        "flags": {"battery": True},
-    },
-    "Sonos Amp": {
-        "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "sub_enabled", "sub_gain", "sub_crossover"],
-        "flags": {"has_subwoofer": True},
-    },
-    "Sonos Port": {
-        "settings": ["volume", "mute", "bass", "treble", "loudness", "status_light",
-                     "buttons_enabled", "shuffle", "repeat", "cross_fade", "balance", "fixed_volume"],
-        "flags": {"supports_fixed_volume": True},
-    },
+    # Speakers
+    "Sonos Era 100": {"settings": _COMMON},
+    "Sonos Era 300": {"settings": _COMMON},
+    "Sonos Era 100 Pro": {"settings": _COMMON},
+    "Sonos Five": {"settings": _COMMON},
+    "Sonos One": {"settings": _COMMON},
+    "Sonos One SL": {"settings": _COMMON},
+    "SYMFONISK Bookshelf": {"settings": _COMMON},
+    # An S1 speaker: no battery page at all, so SoCo gets an error status.
+    "Sonos Play:5": {"settings": _COMMON, "battery": "missing"},
+    # Portables
+    "Sonos Move 2": {"settings": _COMMON, "battery": True},
+    "Sonos Move": {"settings": _COMMON, "battery": True},
+    "Sonos Roam 2": {"settings": _COMMON, "battery": True},
+    "Sonos Roam": {"settings": _COMMON, "battery": True},
+    "Sonos Roam SL": {"settings": _COMMON, "battery": True},
+    # Soundbars
+    "Sonos Arc Ultra": {"settings": _SOUNDBAR + ["speech_enhance_enabled"]},
+    "Sonos Beam Ultra": {"settings": _SOUNDBAR + ["speech_enhance_enabled"]},
+    "Sonos Arc": {"settings": _SOUNDBAR},
+    "Sonos Beam": {"settings": _SOUNDBAR},
+    "Sonos Ray": {"settings": _SOUNDBAR},
+    # Subwoofers: never a room of their own.
+    "Sonos Sub 4": {"settings": ["volume", "mute"]},
+    "Sonos Sub Mini": {"settings": ["volume", "mute"]},
+    "Sonos Sub": {"settings": ["volume", "mute"]},
+    # Components.  SoCo counts the Amp as a soundbar (it has HDMI ARC) and as
+    # always having a subwoofer (its RCA output).
+    "Sonos Amp": {"settings": _SOUNDBAR + _SUB + ["sub_crossover"]},
+    "Sonos Port": {"settings": _COMMON + ["fixed_volume"], "fixed": True, "refuses": _NO_BUTTONS},
+    "Sonos Connect": {"settings": _COMMON + ["fixed_volume"], "fixed": True, "refuses": _NO_BUTTONS},
+    # One amplifier, several rooms: the further zones answer on other ports.
+    "Sonos Amp Multi": {"settings": _COMMON, "refuses": _NO_BUTTONS},
 }
 
 DEFAULTS = {
@@ -122,9 +145,47 @@ class Household:
     # -- topology --------------------------------------------------------
     def add(self, name, model="Sonos Era 100", ip=None, **kwargs):
         ip = ip or f"192.168.1.{10 + len(self.players)}"
+        kwargs.setdefault("uid", f"RINCON_{0x48A6B8000000 + len(self.players):012X}01400")
         player = SimPlayer(self, name=name, model=model, ip=ip, **kwargs)
         self.players.append(player)
         return player
+
+    def _bond(self, main, model, channel):
+        """A speaker that plays as part of ``main``'s room and is never a room itself."""
+        part = self.add(main.player_name, model, visible=False)
+        part.bonded_to = main.uid
+        part._coordinator = main._coordinator
+        part.channel = channel
+        return part
+
+    def home_theater(self, name, model="Sonos Arc Ultra", surrounds=None, sub=None, ip=None):
+        """A soundbar with optional rear speakers and subwoofer, as one room."""
+        bar = self.add(name, model, ip=ip)
+        mapping = [f"{bar.uid}:LF,RF"]
+        if surrounds:
+            for channel in ("LR", "RR"):
+                mapping.append(f"{self._bond(bar, surrounds, channel).uid}:{channel}")
+        if sub:
+            mapping.append(f"{self._bond(bar, sub, 'SW').uid}:SW")
+        bar._ht_map = ";".join(mapping)
+        return bar
+
+    def stereo_pair(self, name, model="Sonos Era 100", sub=None, ip=None):
+        """Two speakers as left and right of one room, optionally with a subwoofer."""
+        left = self.add(name, model, ip=ip)
+        left.channel = "LF"
+        right = self._bond(left, model, "RF")
+        mapping = [f"{left.uid}:LF,LF", f"{right.uid}:RF,RF"]
+        if sub:
+            mapping.append(f"{self._bond(left, sub, 'SW').uid}:SW,SW")
+        left._pair_map = ";".join(mapping)
+        return left
+
+    def multi_zone(self, names, model="Sonos Amp Multi", ip=None):
+        """One amplifier serving several rooms: one address, one port per room."""
+        ip = ip or f"192.168.1.{10 + len(self.players)}"
+        return [self.add(name, model, ip=ip, port=1400 + 10 * index)
+                for index, name in enumerate(names)]
 
     def visible(self):
         return [p for p in self.players if p.is_visible]
@@ -181,7 +242,7 @@ class ZoneGroupState:
 
     def poll(self, player):
         self.polls += 1
-        self.household.call("zone_group_state.poll")
+        player._call("zone_group_state.poll")
 
 
 class Service:
@@ -191,11 +252,11 @@ class Service:
         self.player = player
 
     def GetCurrentTransportActions(self, args):
-        self.player.household.call("GetCurrentTransportActions")
+        self.player._call("GetCurrentTransportActions")
         return {"Actions": ",".join(self.player.coordinator().actions)}
 
     def GetMediaInfo(self, args):
-        self.player.household.call("GetMediaInfo")
+        self.player._call("GetMediaInfo")
         playback = self.player.coordinator().playback
         return {"CurrentURI": playback.uri, "CurrentURIMetaData": playback.metadata}
 
@@ -240,31 +301,40 @@ class SimGroup:
     def label(self):
         return "+".join(p.player_name for p in self.members)
 
+    def _rooms(self):
+        """The members whose volume can change: visible, and not at fixed output."""
+        rooms = [p for p in self.members if p.is_visible and not p._values["fixed_volume"]]
+        if not rooms:
+            raise SoCoUPnPException("UPnP Error 800 received", error_code="800")
+        return rooms
+
     @property
     def volume(self):
-        self.coordinator.household.call("group.volume")
-        return round(sum(p._values["volume"] for p in self.members) / len(self.members))
+        self.coordinator._call("group.volume")
+        rooms = self._rooms()
+        return round(sum(p._values["volume"] for p in rooms) / len(rooms))
 
     @volume.setter
     def volume(self, value):
-        self.coordinator.household.call("group.volume=")
-        for player in self.members:
+        self.coordinator._call("group.volume=")
+        for player in self._rooms():
             player._values["volume"] = max(0, min(100, int(value)))
 
     def set_relative_volume(self, delta):
-        self.coordinator.household.call("group.set_relative_volume")
-        for player in self.members:
+        self.coordinator._call("group.set_relative_volume")
+        rooms = self._rooms()
+        for player in rooms:
             player._values["volume"] = max(0, min(100, player._values["volume"] + delta))
-        return round(sum(p._values["volume"] for p in self.members) / len(self.members))
+        return round(sum(p._values["volume"] for p in rooms) / len(rooms))
 
     @property
     def mute(self):
-        self.coordinator.household.call("group.mute")
-        return all(p._values["mute"] for p in self.members)
+        self.coordinator._call("group.mute")
+        return all(p._values["mute"] for p in self.members if p.is_visible)
 
     @mute.setter
     def mute(self, value):
-        self.coordinator.household.call("group.mute=")
+        self.coordinator._call("group.mute=")
         for player in self.members:
             player._values["mute"] = bool(value)
 
@@ -272,18 +342,30 @@ class SimGroup:
 class SimPlayer:
     """A SoCo-compatible speaker."""
 
-    def __init__(self, household, name, model, ip, visible=True, uid=None):
+    def __init__(self, household, name, model, ip, visible=True, uid=None, port=1400):
         object.__setattr__(self, "_ready", False)
         self.household = household
         self.player_name = name
         self.model = model
         self.ip_address = ip
+        self.port = port
         self.uid = uid or f"RINCON_{abs(hash(name)) % 10**12:012d}"
         self.is_visible = visible
+        #: False while the speaker does not answer: asleep, or out of range.
+        self.online = True
+        #: The room a surround, subwoofer or second stereo speaker belongs to.
+        self.bonded_to = None
+        self.channel = None
+        self._ht_map = ""
+        self._pair_map = ""
         self._coordinator = self.uid
         self._values = dict(DEFAULTS)
-        self._supported = set(MODELS[model]["settings"])
-        self._flags = dict(MODELS[model]["flags"])
+        product = MODELS[model]
+        self._product = product
+        self._supported = set(product["settings"])
+        self._refuses = dict(product.get("refuses", {}))
+        self.battery_level = 82
+        self.power_source = "BATTERY"
         self.playback = Playback()
         self.avTransport = Service(self)
         self.renderingControl = Service(self)
@@ -294,57 +376,88 @@ class SimPlayer:
     def __repr__(self):
         return f"<SimPlayer {self.player_name}>"
 
+    def _call(self, name):
+        """Network calls go through the player, so one that stopped answering
+        fails the way SoCo would, and only that one."""
+        self.household.call(name)
+        if not self.online:
+            raise TimeoutError(f"{self.player_name} did not answer {name}")
+
     # -- settings routed through the call counter ------------------------
     def __getattr__(self, name):
         if name in SETTING_KEYS:
             player = object.__getattribute__(self, "_ready") and self
             if not player:
                 raise AttributeError(name)
-            if name not in self._supported:
+            if name in self._refuses:
+                self._call(f"get {name}")
+                raise SoCoUPnPException(f"UPnP Error {self._refuses[name]} received",
+                                        error_code=self._refuses[name])
+            if name not in self._bonded_settings():
                 raise AttributeError(name)
-            self.household.call(f"get {name}")
+            self._call(f"get {name}")
             return self._values[name]
         raise AttributeError(name)
 
     def __setattr__(self, name, value):
         if getattr(self, "_ready", False) and name in SETTING_KEYS:
-            if name not in self._supported:
+            if name not in self._bonded_settings():
                 raise AttributeError(name)
-            self.household.call(f"set {name}")
+            self._call(f"set {name}")
             self._values[name] = value
             return
         object.__setattr__(self, name, value)
 
+    def _bonded_settings(self):
+        """The model's settings, plus the ones its bonded speakers bring."""
+        supported = set(self._supported)
+        if ":LR" in self._ht_map:
+            supported.update(_HOME_THEATER)
+        if ":SW" in self._ht_map + self._pair_map:
+            supported.update(_SUB)
+        return supported
+
     # -- capability flags ------------------------------------------------
     # SoCo asks the device for each of these, so they cost a request just like
     # a setting does.  Counting them keeps the responsiveness numbers honest.
-    def _flag(self, name, default=False):
-        self.household.call(f"capability {name}")
-        return self._flags.get(name, default)
+    # Like SoCo, they come from the model name and the bonded speakers.
+    def _flag(self, name, value):
+        self._call(f"capability {name}")
+        return value
 
     @property
     def is_soundbar(self):
-        return self._flag("is_soundbar")
+        return self._flag("is_soundbar", self.model.lower().endswith(SOUNDBARS))
+
+    @property
+    def is_ultra_soundbar(self):
+        return self._flag("is_ultra_soundbar", self.model.lower().endswith(ULTRA_SOUNDBARS))
 
     @property
     def is_arc_ultra_soundbar(self):
-        return self._flag("is_arc_ultra")
+        return self._flag("is_arc_ultra_soundbar", self.model.lower().endswith("arc ultra"))
 
     @property
     def has_satellites(self):
-        return self._flag("has_satellites")
+        return self._flag("has_satellites", ":LR" in self._ht_map)
 
     @property
     def _ht_sat_chan_map(self):
-        return self._flag("_ht_sat_chan_map", "")
+        return self._flag("_ht_sat_chan_map", self._ht_map)
+
+    @property
+    def _channel_map(self):
+        return self._flag("_channel_map", self._pair_map)
 
     @property
     def has_subwoofer(self):
-        return self._flag("has_subwoofer")
+        if self.model.lower().endswith("sonos amp"):
+            return self._flag("has_subwoofer", True)
+        return self._flag("has_subwoofer", ":SW" in self._pair_map + self._ht_map)
 
     @property
     def supports_fixed_volume(self):
-        return self._flag("supports_fixed_volume")
+        return self._flag("supports_fixed_volume", bool(self._product.get("fixed")))
 
     @property
     def is_coordinator(self):
@@ -356,48 +469,59 @@ class SimPlayer:
 
     @property
     def group(self):
-        self.household.call("group")
+        self._call("group")
         coordinator = self.coordinator()
         members = [p for p in self.household.players if p._coordinator == self._coordinator]
         return SimGroup(coordinator, members)
 
     @property
     def all_zones(self):
-        self.household.call("all_zones")
+        self._call("all_zones")
         return list(self.household.players)
 
+    def _room(self):
+        """This speaker and the ones bonded to it, which always move together."""
+        return [p for p in self.household.players if p is self or p.bonded_to == self.uid]
+
     def join(self, other):
-        self.household.call("join")
-        self._coordinator = other.coordinator()._coordinator
+        self._call("join")
+        coordinator = other.coordinator()._coordinator
+        for player in self._room():
+            player._coordinator = coordinator
         self.household.alarm_list_version += 0
 
     def unjoin(self):
-        self.household.call("unjoin")
+        self._call("unjoin")
+        room = {p.uid for p in self._room()}
         followers = [p for p in self.household.players
-                     if p._coordinator == self._coordinator and p is not self]
+                     if p._coordinator == self._coordinator and p.uid not in room]
         if self.is_coordinator and followers:
-            # Hand coordination to the first remaining member, as Sonos does.
-            new = followers[0]
+            # Hand coordination to the first remaining room, as Sonos does.
+            new = next(p for p in followers if p.is_visible)
             for player in followers:
                 player._coordinator = new.uid
             new.playback = self.playback
             self.playback = Playback()
-        self._coordinator = self.uid
+        elif not self.is_coordinator:
+            # A room that leaves a group is silent until something plays there.
+            self.playback.state = "STOPPED"
+        for player in self._room():
+            player._coordinator = self.uid
 
     # -- transport -------------------------------------------------------
     def get_current_transport_info(self):
-        self.household.call("GetTransportInfo")
+        self._call("GetTransportInfo")
         playback = self.coordinator().playback
         return {"current_transport_state": playback.state,
                 "current_transport_status": playback.status}
 
     def get_current_media_info(self):
-        self.household.call("GetMediaInfo")
+        self._call("GetMediaInfo")
         playback = self.coordinator().playback
         return {"uri": playback.uri, "channel_count": "1"}
 
     def get_current_track_info(self):
-        self.household.call("GetPositionInfo")
+        self._call("GetPositionInfo")
         playback = self.coordinator().playback
         return {
             "title": playback.title, "artist": playback.artist, "album": "",
@@ -419,34 +543,34 @@ class SimPlayer:
         return ["Play", "Pause", "Stop", "Next", "Previous", "Seek", "X_DLNA_SeekTime"]
 
     def play(self):
-        self.household.call("Play")
+        self._call("Play")
         self.coordinator().playback.state = "PLAYING"
 
     def pause(self):
-        self.household.call("Pause")
+        self._call("Pause")
         self.coordinator().playback.state = "PAUSED_PLAYBACK"
 
     def stop(self):
-        self.household.call("Stop")
+        self._call("Stop")
         self.coordinator().playback.state = "STOPPED"
 
     def next(self):
-        self.household.call("Next")
+        self._call("Next")
         playback = self.coordinator().playback
         playback.queue_position = min(len(playback.queue) or 1, playback.queue_position + 1)
 
     def previous(self):
-        self.household.call("Previous")
+        self._call("Previous")
         playback = self.coordinator().playback
         playback.queue_position = max(1, playback.queue_position - 1)
 
     def seek(self, position=None, **kwargs):
-        self.household.call("Seek")
+        self._call("Seek")
         hours, minutes, seconds = (int(p) for p in str(position).split(":"))
         self.coordinator().playback.position = hours * 3600 + minutes * 60 + seconds
 
     def play_uri(self, uri, meta="", start=True, **kwargs):
-        self.household.call("SetAVTransportURI")
+        self._call("SetAVTransportURI")
         playback = self.coordinator().playback
         playback.uri, playback.metadata = uri, meta
         playback.title = playback.title or "Stream"
@@ -454,23 +578,23 @@ class SimPlayer:
             playback.state = "PLAYING"
 
     def clear_queue(self):
-        self.household.call("RemoveAllTracksFromQueue")
+        self._call("RemoveAllTracksFromQueue")
         self.coordinator().playback.queue = []
 
     def add_to_queue(self, item, **kwargs):
-        self.household.call("AddURIToQueue")
+        self._call("AddURIToQueue")
         playback = self.coordinator().playback
         playback.queue.append(item)
         return len(playback.queue)
 
     def add_multiple_to_queue(self, items, container=None, **kwargs):
         """One request per batch, the way SoCo chunks AddMultipleURIsToQueue."""
-        self.household.call("AddMultipleURIsToQueue")
+        self._call("AddMultipleURIsToQueue")
         self.coordinator().playback.queue.extend(items)
         return len(self.coordinator().playback.queue)
 
     def play_from_queue(self, index, start=True):
-        self.household.call("SetAVTransportURI(queue)")
+        self._call("SetAVTransportURI(queue)")
         playback = self.coordinator().playback
         playback.uri = f"x-rincon-queue:{self.uid}#0"
         playback.queue_position = index + 1
@@ -481,22 +605,26 @@ class SimPlayer:
 
     # -- misc ------------------------------------------------------------
     def get_speaker_info(self, **kwargs):
-        self.household.call("get_speaker_info")
+        self._call("get_speaker_info")
         return {"model_name": self.model, "zone_name": self.player_name,
                 "software_version": "90.0"}
 
     def get_battery_info(self, timeout=3):
-        self.household.call("get_battery_info")
-        if not self._flags.get("battery"):
+        self._call("get_battery_info")
+        battery = self._product.get("battery")
+        if battery == "missing":
+            # SoCo turns the S1 speakers' error status into ConnectionError.
+            raise ConnectionError("No battery status page")
+        if not battery:
             raise NotSupportedException("No battery")
-        return {"Level": 82, "PowerSource": "BATTERY", "Health": "GREEN"}
+        return {"Level": self.battery_level, "PowerSource": self.power_source, "Health": "GREEN"}
 
     def get_sleep_timer(self):
-        self.household.call("GetRemainingSleepTimerDuration")
+        self._call("GetRemainingSleepTimerDuration")
         return self.coordinator().playback.sleep_timer
 
     def set_sleep_timer(self, seconds):
-        self.household.call("ConfigureSleepTimer")
+        self._call("ConfigureSleepTimer")
         self.coordinator().playback.sleep_timer = seconds
 
 
@@ -509,7 +637,7 @@ class MusicLibrary:
         self.player = player
 
     def get_sonos_favorites(self, complete_result=False, **kwargs):
-        self.player.household.call("get_sonos_favorites")
+        self.player._call("get_sonos_favorites")
         return list(self.player.household.favorites)
 
 
@@ -644,10 +772,10 @@ def build_soco_module(household):
     """Return a stand-in for the vendored ``soco`` package."""
     module = types.ModuleType("soco")
 
-    def SoCo(ip):
-        player = next((p for p in household.players if p.ip_address == ip), None)
+    def SoCo(ip, port=1400):
+        player = next((p for p in household.players if p.ip_address == ip and p.port == port), None)
         if player is None:
-            raise OSError(f"No speaker at {ip}")
+            raise OSError(f"No speaker at {ip}:{port}")
         return player
 
     data_structures = types.ModuleType("soco.data_structures")
@@ -662,7 +790,7 @@ def build_soco_module(household):
     module.config = types.SimpleNamespace(REQUEST_TIMEOUT=3)
     module.data_structures = data_structures
     module.exceptions = exceptions
-    module.discover = lambda **kwargs: list(household.players)
+    module.discover = lambda **kwargs: [p for p in household.players if p.online]
     return module
 
 
@@ -687,4 +815,49 @@ def default_household(latency=0.0):
     house.add_favorite("Jazz Playlist", "file:///jazz",
                        "object.container.playlistContainer")
     house.add_alarm(living, start="07:30:00", recurrence="WEEKDAYS", volume=18)
+    return house
+
+
+def product_household(latency=0.0):
+    """Every kind of Sonos product the add-on is meant for, set up as people do.
+
+    Soundbars with and without rear speakers and subwoofers, a stereo pair with
+    a subwoofer, portables (one of them asleep), a fixed-output Port, an Amp with
+    its own subwoofer, a three-room Amp Multi, IKEA's speaker and an S1 speaker.
+    """
+    house = Household(latency=latency)
+    house.home_theater("Living Room", "Sonos Arc Ultra", surrounds="Sonos Era 100", sub="Sonos Sub 4")
+    house.home_theater("TV Room", "Sonos Beam Ultra")
+    house.home_theater("Den", "Sonos Ray", sub="Sonos Sub Mini")
+    house.home_theater("Cinema", "Sonos Arc", surrounds="Sonos One SL", sub="Sonos Sub")
+    house.home_theater("Guest Room", "Sonos Beam")
+    house.stereo_pair("Bedroom", "Sonos Era 300", sub="Sonos Sub Mini")
+    house.add("Kitchen", "Sonos Era 100")
+    house.add("Study", "Sonos Five")
+    house.add("Lobby", "Sonos Era 100 Pro")
+    house.add("Bathroom", "Sonos One")
+    house.add("Bookshelf", "SYMFONISK Bookshelf")
+    house.add("Attic", "Sonos Play:5")
+    patio = house.add("Patio", "Sonos Move 2")
+    patio.power_source = "SONOS_CHARGING_RING"
+    house.add("Garden", "Sonos Move")
+    house.add("Beach Bag", "Sonos Roam 2").battery_level = 46
+    house.add("Balcony", "Sonos Roam")
+    asleep = house.add("Garage", "Sonos Roam SL")
+    asleep.online = False
+    hifi = house.add("Hi-Fi", "Sonos Port")
+    hifi._values["fixed_volume"] = True
+    house.add("Record Player", "Sonos Connect")
+    house.add("Terrace", "Sonos Amp")
+    house.multi_zone(["Zone 1", "Zone 2", "Zone 3"])
+
+    living = house.find("Living Room")
+    living.playback.state = "PLAYING"
+    living.playback.uri = f"x-sonos-htastream:{living.uid}:spdif"
+    kitchen = house.find("Kitchen")
+    kitchen.playback.state = "PLAYING"
+    kitchen.playback.uri = "x-sonosapi-stream:test?sid=254"
+    kitchen.playback.title = "Test Radio"
+    house.add_favorite("Test Radio", "x-sonosapi-stream:test?sid=254")
+    house.add_alarm(house.find("Bedroom"), start="06:45:00", recurrence="WEEKDAYS", volume=15)
     return house

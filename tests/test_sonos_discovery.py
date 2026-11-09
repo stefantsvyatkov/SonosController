@@ -17,7 +17,7 @@ class DiscoveryTests(unittest.TestCase):
         soco = types.SimpleNamespace(SoCo=lambda ip: seed)
         saved = Mock()
         finder = discovery.RoomDiscovery(soco, [seed.ip_address], saved)
-        with patch.object(discovery, 'reachable', side_effect=lambda ip: ip != offline.ip_address), patch.object(discovery, 'discover_rooms') as full:
+        with patch.object(discovery, 'reachable', side_effect=lambda ip, port=1400: ip != offline.ip_address), patch.object(discovery, 'discover_rooms') as full:
             self.assertEqual(finder(), [seed, new])
             full.assert_not_called()
         seed.zone_group_state.clear_cache.assert_called_once()

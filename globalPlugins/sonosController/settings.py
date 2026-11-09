@@ -129,8 +129,8 @@ class Settings:
     @staticmethod
     def gates(room, model):
         soundbar = capability(room, "is_soundbar")
-        ultra = capability(room, "is_arc_ultra_soundbar")
-        # SoCo 0.31.1 exposes satellite channel mappings after topology polling.
+        ultra = capability(room, "is_ultra_soundbar")
+        # SoCo exposes satellite channel mappings after topology polling.
         satellites = capability(room, "has_satellites")
         mapping = getattr(room, "_ht_sat_chan_map", "") or ""
         surround = soundbar and satellites and any(channel in mapping for channel in (":LR", ":RR"))

@@ -3,9 +3,11 @@
 import concurrent.futures
 import ipaddress
 import logging
+import re
 import select
 import socket
 import time
+from urllib.parse import urlsplit
 
 from . import vendors
 from .i18n import _
@@ -15,13 +17,39 @@ log = logging.getLogger(__name__)
 #: Saved addresses are hints only, and the list stays small on purpose.
 MAX_ADDRESSES = 32
 
+#: Every Sonos player listens here, except the further zones of a multi-zone
+#: amplifier such as the Amp Multi, which share its address on other ports.
+PORT = 1400
 
-def reachable(ip):
+_LOCATION = re.compile(rb"^location:\s*(\S+)", re.IGNORECASE | re.MULTILINE)
+
+
+def reachable(ip, port=PORT):
     try:
-        with socket.create_connection((ip, 1400), timeout=1):
+        with socket.create_connection((ip, port), timeout=1):
             return True
     except OSError:
         return False
+
+
+def _port(player):
+    return getattr(player, "port", PORT) or PORT
+
+
+def _player(soco, ip, port):
+    # The default port keeps the one-argument form, which every SoCo accepts.
+    return soco.SoCo(ip) if port == PORT else soco.SoCo(ip, port)
+
+
+def _ssdp_port(data):
+    """The port in a reply's LOCATION header, or the default one."""
+    match = _LOCATION.search(data)
+    if match:
+        try:
+            return urlsplit(match.group(1).decode("ascii", "replace")).port or PORT
+        except ValueError:
+            pass
+    return PORT
 
 
 def _describe(player):
@@ -70,7 +98,7 @@ def discover_rooms(soco, timeout=4):
                     # whole scan.
                     continue
                 if b"sonos" in data.lower():
-                    addresses.add(source[0])
+                    addresses.add((source[0], _ssdp_port(data)))
                     # MX is one second. Once a player answers, allow the full MX
                     # window plus a short late-response grace instead of always
                     # waiting for the four-second failure timeout.
@@ -79,9 +107,11 @@ def discover_rooms(soco, timeout=4):
     finally:
         for sock in sockets:
             sock.close()
+    endpoints = sorted(addresses)
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        available = [ip for ip, ok in zip(sorted(addresses), pool.map(reachable, sorted(addresses))) if ok]
-    rooms = _resolve(soco.SoCo(ip) for ip in available)
+        available = [point for point, ok in zip(endpoints, pool.map(lambda e: reachable(*e), endpoints))
+                     if ok]
+    rooms = _resolve(_player(soco, ip, port) for ip, port in available)
     if addresses and not rooms:
         raise RuntimeError(
             _("Sonos speakers were found, but local control on port 1400 is unavailable."))
@@ -143,6 +173,6 @@ class RoomDiscovery:
         if not zones or not any(p.ip_address == seed.ip_address for p in zones):
             return []
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            live = [p for p, ok in zip(zones, pool.map(reachable, [p.ip_address for p in zones]))
+            live = [p for p, ok in zip(zones, pool.map(lambda p: reachable(p.ip_address, _port(p)), zones))
                     if ok]
         return _resolve(live)

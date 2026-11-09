@@ -2,7 +2,7 @@
 
 from .i18n import _
 from .media import describe, seconds
-from .util import PAGE_STEP, timestamp
+from .util import PAGE_STEP, timestamp, transient
 
 #: How much each volume key changes the group volume.
 VOLUME_STEPS = {"up": 1, "down": -1, "pageUp": PAGE_STEP, "pageDown": -PAGE_STEP}
@@ -28,13 +28,25 @@ class Controller:
         if not self.rooms:
             self.refresh()
         groups = {}
-        for room in self.rooms:
-            group = room.group
+        failure = None
+        # The topology is shared, so the first room that answers serves the
+        # rest.  Ask the selected room first: a portable that has gone to sleep
+        # must not hold up every command, or stop the others being listed.
+        for room in sorted(self.rooms, key=lambda p: p.uid != self.selected):
+            try:
+                group = room.group
+            except Exception as error:
+                if not transient(error):
+                    raise
+                failure = error
+                continue
             # Topology can be mid-update, in which case SoCo has no group yet.
             if group is None or group.coordinator is None:
                 continue
             groups[group.coordinator.uid] = group
         if not groups:
+            if failure is not None:
+                raise failure
             raise RuntimeError(_("Room grouping is still updating. Try again."))
         return sorted(groups.values(), key=lambda g: self.label(g).casefold())
 
@@ -118,11 +130,20 @@ class Controller:
             return _("Position {time}").format(time=stamp)
         if action == "battery":
             reports = []
+            unread = False
             for room in self.members(group):
                 try:
                     info = room.get_battery_info(timeout=3)
                 except Exception as error:
-                    if type(error).__name__ == "NotSupportedException":
+                    name = type(error).__name__
+                    # One silent speaker must not hide the others' batteries.
+                    if isinstance(error, TimeoutError) or "Timeout" in name:
+                        unread = True
+                        continue
+                    # An older speaker answers the battery page with an error
+                    # status: it has no battery to report.
+                    if (name == "NotSupportedException" or isinstance(error, ConnectionError)
+                            or "ConnectionError" in name):
                         continue
                     raise
                 level = info.get("Level")
@@ -133,13 +154,23 @@ class Controller:
                     if power:
                         report += _(", power source {source}").format(source=power)
                     reports.append(report)
-            return "; ".join(reports) or _("Battery not available.")
-        if action in VOLUME_STEPS:
-            volume = group.set_relative_volume(VOLUME_STEPS[action])
-            return _("{volume} percent").format(volume=volume)
-        if action == "mute":
-            group.mute = not group.mute
-            return _("Muted") if group.mute else _("Unmuted")
+            if reports:
+                return "; ".join(reports)
+            return _("Battery could not be read.") if unread else _("Battery not available.")
+        if action in VOLUME_STEPS or action == "mute":
+            try:
+                if action == "mute":
+                    group.mute = not group.mute
+                    return _("Muted") if group.mute else _("Unmuted")
+                volume = group.set_relative_volume(VOLUME_STEPS[action])
+                return _("{volume} percent").format(volume=volume)
+            except Exception as error:
+                # A Port or Connect set to fixed line output refuses volume
+                # changes; say why instead of quoting a Sonos error number.
+                fixed = self.fixed_rooms(group) if getattr(error, "error_code", None) else []
+                if fixed:
+                    return _("Fixed volume on {rooms}.").format(rooms=", ".join(fixed))
+                raise
         if action == "playPause":
             actions = self.transport_actions(player)
             if player.get_current_transport_info()["current_transport_state"] == "PLAYING":
@@ -175,6 +206,16 @@ class Controller:
             state = player.get_current_transport_info()["current_transport_state"]
             return describe(track, state.replace("_", " ").lower())
         raise ValueError(_("That Sonos command is not available."))
+
+    def fixed_rooms(self, group):
+        names = []
+        for room in self.members(group):
+            try:
+                if room.fixed_volume:
+                    names.append(room.player_name)
+            except Exception:
+                continue
+        return names
 
     @staticmethod
     def transport_actions(player):
