@@ -12,13 +12,14 @@
     The agent mutes every sound device of the sandbox before each run; nothing is ever heard.
 
 .PARAMETER Scenario
-    A scenario of driver.py: smoke, pagekeys, alarms, settings or norooms.
+    A scenario of driver.py: smoke, pagekeys, alarms, settings, norooms, groups or products.
 
 .PARAMETER Nvda
     NVDA versions to run on; each needs artifacts\sandbox\nvda\nvda_<version>.exe.
 
 .PARAMETER Household
-    "default" (the household the host tests use) or "empty" (no speakers, for norooms).
+    "default" (the household the host tests use), "empty" (no speakers, for norooms) or
+    "products" (one of every kind of Sonos product, for products).
 
 .PARAMETER Stop
     Close the sandbox. Do this when finished: BST Radio and TikTok Live Reader use it too.

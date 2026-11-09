@@ -363,8 +363,12 @@ def scenario_groups(run):
     """Grouping, breaking up with Shift+G, and moving the music on."""
     if not run.wait_for_nvda():
         return
-    if not enter_layer(run):
+    heard = enter_layer(run)
+    if not heard:
         return
+    # The layer opens on Kitchen, the first room by name; Living Room is the one playing.
+    if "Living Room" not in heard:
+        run.press_and_hear("right", r"^Living Room, ", "Right reaches the playing Living Room")
     run.press_and_hear("g", r"^Group\. Living Room", "G starts grouping from the playing room")
     run.press_and_hear("right", r"selected", "Right reaches the next room")
     run.press_and_hear("space", r", selected", "Space selects it")
