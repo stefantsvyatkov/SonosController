@@ -281,3 +281,19 @@ class Battery(unittest.TestCase):
         patio_group = simulator.SimGroup(patio, [patio])
         controller.current = lambda: patio_group
         self.assertEqual(controller.execute("battery"), "Battery could not be read.")
+
+
+class SilentMember(unittest.TestCase):
+    def test_a_grouped_portable_that_sleeps_is_named_not_fatal(self):
+        house = product_household()
+        kitchen, patio = house.find("Kitchen"), house.find("Patio")
+        patio.join(kitchen)
+        session = Session(household=house)
+        self.addCleanup(session.close)
+        session.press("kb:NVDA+shift+control+s")
+        session.select_room("Kitchen")
+        patio.online = False
+        session.press("kb:rightArrow")
+        self.assertEqual(session.press("kb:leftArrow")[-1],
+                         "Kitchen, 25 percent; Patio, not answering")
+        self.assertRegex(session.press("kb:upArrow")[-1], r"^\d+ percent$")

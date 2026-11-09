@@ -71,9 +71,16 @@ class Controller:
         self.remember(self.selected)
 
     def describe(self, group):
-        parts = [_("{room}, {volume} percent").format(room=p.player_name, volume=p.volume)
-                 + (_(", muted") if p.mute else "")
-                 for p in self.members(group)]
+        parts = []
+        for p in self.members(group):
+            try:
+                parts.append(_("{room}, {volume} percent").format(room=p.player_name, volume=p.volume)
+                             + (_(", muted") if p.mute else ""))
+            except Exception as error:
+                # A grouped portable that went to sleep still leaves the others to hear.
+                if not transient(error):
+                    raise
+                parts.append(_("{room}, not answering").format(room=p.player_name))
         return "; ".join(parts) or self.label(group)
 
     def execute(self, action):
