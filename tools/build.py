@@ -83,6 +83,13 @@ def build():
         for path in sorted(files):
             _write_file(archive, path)
     _verify_archive(output)
+    # Only the latest build is kept: an older version's package goes once the
+    # new one has passed its checks.
+    name = output.name.split("-", 1)[0]
+    for old in output.parent.glob(f"{name}-*.nvda-addon"):
+        if old != output:
+            old.unlink()
+            print(f"removed {old.name}")
     print(output)
 
 
