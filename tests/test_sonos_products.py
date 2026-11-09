@@ -84,7 +84,7 @@ class Rooms(unittest.TestCase):
 
     def test_what_is_playing_names_the_source(self):
         self.session.select_room("Living Room")
-        self.assertTrue(self.session.press("kb:p")[-1].startswith("TV"))
+        self.assertEqual(self.session.press("kb:p")[-1], "TV, playing")
         self.session.select_room("Kitchen")
         self.assertTrue(self.session.press("kb:p")[-1].startswith("Internet radio"))
 

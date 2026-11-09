@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from harness import Session
 from harness.session import default_household
+from harness.sonos import product_household
 
 SCENARIOS = {}
 
@@ -264,11 +265,11 @@ def sleep_timer_axes():
     print("  Down (move to the Custom row):")
     for line in session.press("kb:downArrow"):
         print("    " + line)
-    print("  Down again, already at the last row:")
+    print("  Down again, from the last row:")
     for line in session.press("kb:downArrow"):
         print("    " + line)
-    print("\n  verdict: the row list clamps silently instead of wrapping like"
-          "\n           every other list in the add-on.")
+    print("\n  verdict: the rows wrap back to the presets like every other list"
+          "\n           in the add-on, and the preset keeps its value.")
     session.close()
 
 
@@ -290,6 +291,45 @@ def error_messages():
     print("  network drops while asking for the track:")
     for line in session.press("kb:p"):
         print("    " + line)
+    session.close()
+
+
+@scenario("Break up: Shift+G leaves the playing room on its own")
+def break_up():
+    session = Session()
+    session.press("kb:NVDA+shift+control+s")
+    session.select_room("Living Room")
+    session.press("kb:g", "kb:rightArrow", "kb:space")
+    for line in session.press("kb:enter"):
+        print("  grouped: " + line)
+    print("  Shift+G:")
+    for line in session.press("kb:shift+g"):
+        print("    " + line)
+    print("  Shift+G again, nothing left to break up:")
+    for line in session.press("kb:shift+g"):
+        print("    " + line)
+    print(f"\n  rooms now: {session.household.topology()}")
+    session.close()
+
+
+@scenario("Products: every kind of Sonos product, room by room")
+def product_tour():
+    house = product_household()
+    session = Session(household=house)
+    session.press("kb:NVDA+shift+control+s")
+    seen = []
+    for _ in range(len(house.players)):
+        line = session.press("kb:rightArrow")[-1]
+        room = line.split(",")[0]
+        if room in seen:
+            break
+        seen.append(room)
+        print(f"  {house.find(room).model}: {line}")
+        print(f"    P: {session.press('kb:p')[-1]}")
+        print(f"    B: {session.press('kb:b')[-1]}")
+        print(f"    Control+S: {session.press('kb:control+s')[-1]}")
+        session.press("kb:escape")
+    print(f"\n  {len(seen)} rooms; the sleeping Roam SL is not among them.")
     session.close()
 
 

@@ -57,10 +57,13 @@ def describe(track, state):
     stream = values.get("streamContent", "")
     details = [v for v in (title, artist, stream) if v and v != "NOT_IMPLEMENTED"]
     details = list(dict.fromkeys(details))
-    source = source_name(track.get("uri") or track.get("CurrentURI"))
+    uri = track.get("uri") or track.get("CurrentURI")
+    source = source_name(uri)
     if source:
         details.insert(0, source)
-    if not title and not artist and not stream:
+    # TV and line-in sound has no track to describe, so saying so is noise.
+    live_input = (uri or "").lower().startswith(("x-sonos-htastream:", "x-rincon-stream:"))
+    if not title and not artist and not stream and not live_input:
         details.append(_("Track details unavailable"))
     normalized = state.replace("_", " ").lower()
     details.append({"paused playback": "paused", "no media present": "no media"}.get(normalized, normalized))
