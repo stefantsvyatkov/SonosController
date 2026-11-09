@@ -16,7 +16,7 @@ KEYS = {
     "kb:m": "mute", "kb:space": "playPause",
     "kb:control+leftArrow": "previous", "kb:control+rightArrow": "next",
     "kb:p": "playing", "kb:b": "battery", "kb:t": "transfer", "kb:escape": "back",
-    "kb:g": "group", "kb:enter": "applyGroup",
+    "kb:g": "group", "kb:shift+g": "breakUp", "kb:enter": "applyGroup",
     "kb:control+s": "settings", "kb:control+p": "playbackSettings",
     "kb:s": "sleepTimer", "kb:f": "favorites", "kb:control+f": "localFiles",
     "kb:u": "url", "kb:a": "alarms", "kb:e": "elapsed", "kb:r": "remaining",

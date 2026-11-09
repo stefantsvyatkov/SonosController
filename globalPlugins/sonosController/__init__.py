@@ -15,7 +15,7 @@ from scriptHandler import script
 
 from .backend import Controller
 from .discovery import RoomDiscovery
-from .grouping import Grouping
+from .grouping import Grouping, break_up
 from .i18n import _
 from .localfiles import LocalFiles
 from .menus import AlarmMenu, Favorites, SleepTimer
@@ -266,6 +266,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         message = grouping.toggle()
                     else:
                         message = grouping.move(1 if action == "groupRight" else -1)
+                elif action == "breakUp":
+                    message = break_up(controller, cancelled)
                 elif action == "transferStart":
                     transfer = Transfer(controller, self._roomCancel(cancelled))
                     message = transfer.describe()
@@ -469,6 +471,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def script_url(self, gesture):
         self._submit("urlStart")
+
+    def script_breakUp(self, gesture):
+        self._submit("breakUp")
 
     def script_applyGroup(self, gesture):
         self._submit("applyGroup")

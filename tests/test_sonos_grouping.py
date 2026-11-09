@@ -127,3 +127,51 @@ class GroupingTests(unittest.TestCase):
         with patch.object(module.time, 'sleep'), patch.object(module.time, 'monotonic', side_effect=range(30)):
             with self.assertRaisesRegex(RuntimeError, 'Some changes'):
                 session.commit()
+
+
+class BreakUpTests(unittest.TestCase):
+    """Shift+G: the playing room stays, every other room leaves the group."""
+
+    setUp, join, unjoin = GroupingTests.setUp, GroupingTests.join, GroupingTests.unjoin
+
+    def test_others_leave_and_the_playing_room_stays(self):
+        Group(self.a, self.b, self.c)
+        self.assertEqual(module.break_up(self.controller, lambda: False),
+                         "Group broken up. A keeps playing.")
+        self.assertEqual(self.calls, [("unjoin", "B"), ("unjoin", "C")])
+        self.assertEqual([p.uid for p in self.a.group.members], ["A"])
+        self.assertEqual(self.controller.selected, "A")
+
+    def test_a_silent_group_just_breaks_up(self):
+        Group(self.a, self.b)
+        self.a.state = "STOPPED"
+        self.assertEqual(module.break_up(self.controller, lambda: False), "Group broken up.")
+
+    def test_an_ungrouped_room_is_named(self):
+        self.assertEqual(module.break_up(self.controller, lambda: False), "A is not grouped.")
+        self.assertEqual(self.calls, [])
+
+    def test_a_timeout_after_the_change_is_verified_not_repeated(self):
+        Group(self.a, self.b)
+
+        def unjoin():
+            self.unjoin(self.b)
+            raise TimeoutError()
+        self.b.unjoin = unjoin
+        self.assertIn("Group broken up", module.break_up(self.controller, lambda: False))
+        self.assertEqual(self.calls, [("unjoin", "B")])
+
+    def test_a_failure_halfway_says_rooms_may_remain(self):
+        Group(self.a, self.b, self.c)
+
+        def refuse():
+            raise ValueError("refused")
+        self.c.unjoin = refuse
+        with self.assertRaisesRegex(RuntimeError, "may still be grouped"):
+            module.break_up(self.controller, lambda: False)
+
+    def test_cancelling_stops_before_the_next_room(self):
+        Group(self.a, self.b, self.c)
+        self.b.unjoin = lambda: (self.unjoin(self.b), setattr(self, "cancelled", True))
+        self.assertEqual(module.break_up(self.controller, lambda: self.cancelled), module.PARTIAL)
+        self.assertEqual(self.calls, [("unjoin", "B")])
