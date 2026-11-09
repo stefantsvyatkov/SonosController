@@ -359,12 +359,78 @@ def scenario_norooms(run):
                        timeout=30)
 
 
+def scenario_groups(run):
+    """Grouping, breaking up with Shift+G, and moving the music on."""
+    if not run.wait_for_nvda():
+        return
+    if not enter_layer(run):
+        return
+    run.press_and_hear("g", r"^Group\. Living Room", "G starts grouping from the playing room")
+    run.press_and_hear("right", r"selected", "Right reaches the next room")
+    run.press_and_hear("space", r", selected", "Space selects it")
+    run.press_and_hear("enter", r"^Playing rooms: ", "Enter groups the rooms")
+    run.press_and_hear("shift+g", r"^Group broken up\. Living Room keeps playing\.$",
+                       "Shift+G breaks the group up and names the room that plays on")
+    run.press_and_hear("shift+g", r"^Living Room is not grouped\.$",
+                       "Shift+G on a room alone says so")
+    run.press_and_hear("t", r"^Transfer: Living Room to ", "T offers a free room")
+    run.press_and_hear("space", r"^Audio transferred to ", "Space moves the music")
+    run.press_and_hear(TOGGLE, r".", "the layer toggles off")
+
+
+def scenario_products(run):
+    """One of every kind of Sonos product, room by room (household "products")."""
+    if not run.wait_for_nvda():
+        return
+    if not enter_layer(run):
+        return
+    rooms = []
+    for _ in range(30):
+        heard = run.press_and_hear("right", r"percent|Fixed volume", "the next room answers", timeout=6)
+        if heard is None:
+            return
+        room = heard.split(",")[0]
+        if room in rooms:
+            break
+        rooms.append(room)
+    run.check("every room is listed, the sleeping Roam SL is not",
+              len(rooms) == 22 and "Garage" not in rooms, repr(rooms))
+    # Walk on to particular rooms with Right, as a user would.
+    def go(name):
+        for _ in range(len(rooms) + 1):
+            heard = run.press_and_hear("right", r".", f"Right towards {name}", timeout=4)
+            if heard is None:
+                return False
+            if heard.startswith(name + ","):
+                return True
+        return run.check(f"{name} is reached", False)
+    if go("Living Room"):
+        run.press_and_hear("p", r"^TV, playing$", "an Arc Ultra on TV says so")
+        run.press_and_hear("control+s", r"^Settings\. Living Room, Sonos Arc Ultra, ",
+                           "the Arc Ultra's settings name it")
+        found = False
+        for _ in range(12):
+            heard = run.press_and_hear("down", r".", "walking the Arc Ultra's settings", timeout=4)
+            if heard and heard.startswith("Speech enhancement"):
+                found = True
+                break
+        run.check("the Arc Ultra offers speech enhancement", found)
+        run.press_and_hear("escape", r".", "Escape leaves the settings")
+    if go("Patio"):
+        run.press_and_hear("b", r"^Patio, battery \d+ percent", "a Move 2 reports its battery")
+    if go("Hi-Fi"):
+        run.press_and_hear("up", r"^Fixed volume on Hi-Fi\.$", "a Port at fixed output says so")
+    run.press_and_hear(TOGGLE, r".", "the layer toggles off")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "pagekeys": scenario_pagekeys,
     "alarms": scenario_alarms,
     "settings": scenario_settings,
     "norooms": scenario_norooms,
+    "groups": scenario_groups,
+    "products": scenario_products,
 }
 
 

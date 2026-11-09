@@ -27,14 +27,15 @@
     .\sandbox\Run-Sandbox.ps1
     .\sandbox\Run-Sandbox.ps1 -Scenario alarms -Nvda 2026.2
     .\sandbox\Run-Sandbox.ps1 -Scenario norooms -Household empty
+    .\sandbox\Run-Sandbox.ps1 -Scenario products -Household products
     .\sandbox\Run-Sandbox.ps1 -Stop
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet("smoke", "pagekeys", "alarms", "settings", "norooms")]
+    [ValidateSet("smoke", "pagekeys", "alarms", "settings", "norooms", "groups", "products")]
     [string]$Scenario = "smoke",
     [string[]]$Nvda = @("2026.3"),
-    [ValidateSet("default", "empty")]
+    [ValidateSet("default", "empty", "products")]
     [string]$Household = "default",
     [string]$Python = ".tools\python313\python.exe",
     [switch]$Stop,

@@ -13,7 +13,8 @@ when ``SONOS_SIM`` is set.  Only the staged copy is touched; the add-on in the
 repository is never modified, and without the variable these files do nothing.
 
 ``SONOS_SIM`` names the household: ``default`` is the one the host tests use,
-``empty`` has no speakers at all, for the "No Sonos rooms found" path.
+``empty`` has no speakers at all, for the "No Sonos rooms found" path, and
+``products`` has one of every kind of Sonos product (``product_household``).
 """
 
 import os
@@ -32,6 +33,8 @@ def household():
     if _household is None:
         if os.environ.get("SONOS_SIM") == "empty":
             _household = simulator.Household()
+        elif os.environ.get("SONOS_SIM") == "products":
+            _household = simulator.product_household()
         else:
             _household = simulator.default_household()
     return _household
