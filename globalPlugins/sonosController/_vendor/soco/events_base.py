@@ -590,8 +590,7 @@ class SubscriptionBase:
         else:
             try:
                 self.events.put(event)
-            # pylint: disable=broad-except
-            except Exception as ex:
+            except Exception as ex:  # pylint: disable=broad-exception-caught
                 log.warning("Error putting event %s, ex=%s", event, ex)
 
     # pylint: disable=missing-docstring
@@ -772,7 +771,15 @@ def get_listen_ip(ip_address):
         return config.EVENT_LISTENER_IP
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
+        # A UDP connect() only sets the default destination after a local
+        # route lookup, but asyncio blocking-call detectors flag connect() on
+        # any blocking socket, so make it non-blocking (#978).
+        sock.setblocking(False)
         sock.connect((ip_address, config.EVENT_LISTENER_PORT))
+        return sock.getsockname()[0]
+    except BlockingIOError:
+        # Defensive: UDP connect() isn't expected to return EINPROGRESS, but
+        # if it does the local address has still been assigned.
         return sock.getsockname()[0]
     except OSError:
         return None
