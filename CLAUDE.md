@@ -49,6 +49,8 @@ These came from use with a screen reader. Do not change them without asking.
 - The alarm's hour and minute wrap (23 -> 00), page keys with them; the duration fields stop at their ends.
 - A new alarm repeats Once, and Once is first in the list.
 - Grouping and transfer: Left and Right choose, Up and Down keep moving the volume.
+- Shift+G breaks up the selected group at once, without asking: the playing room (the coordinator) keeps
+  playing, the others stop and stand alone.
 - Speaker settings name the speaker once, when the selection reaches it, and never twice ("Move 2, Sonos Move 2").
 - Long messages and the voice announcements stay.
 
@@ -99,7 +101,13 @@ a good download, a tampered one, cancellation, and that neither failure leaves a
   chosen files only, GET, HEAD and byte ranges, no directory listing. The add-on creates no firewall rules.
 - Discovery saves up to 32 speaker IPv4 addresses in NVDA's configuration and probes them first on entry; SSDP runs
   only when none answers, and stops after the response window once one speaker has replied (four seconds if none
-  does). Addresses are hints, never saved room or group state.
+  does). Addresses are hints, never saved room or group state. A player's port comes from its SSDP LOCATION or the
+  topology, so the further rooms of an Amp Multi, which share its address on other ports, are found too.
+- The topology is shared, so `Controller.groups()` asks the selected room first and skips a room that does not
+  answer: a portable gone to sleep must not stop the others being listed. A battery read that times out is
+  reported as unread rather than failing the whole group.
+- Ultra soundbars (Arc Ultra, Beam Ultra; SoCo's `is_ultra_soundbar`) get the speech-enhancement switch; the
+  others the older dialog mode. A volume change a fixed-output Port or Connect refuses is named as fixed volume.
 - Transfer and grouping reuse the rooms found on entry. Grouping waits for fresh topology after each change before
   confirming; commands are not repeated blindly, and partial changes are reported.
 - Requests run in a bounded background queue. Pending commands are discarded when the layer turns off; a request
@@ -117,7 +125,7 @@ tools/harness/
   session.py           the emulator: boots the add-on, presses keys, collects speech
   nvda.py              fake config / ui / inputCore / scriptHandler / logHandler
   fakewx.py            fake wx that models Win32 control keyboard behaviour
-  sonos.py             simulated speakers, groups, favorites, alarms, transport
+  sonos.py             simulated speakers, groups, favorites, alarms, transport; product_household()
   scenarios.py         runnable walk-throughs of the behaviour
 ```
 
@@ -143,9 +151,16 @@ pickers are answered through `session.responder`.
 
 Every operation that would cross the network goes through `Household.call`, so round trips can be counted
 (`session.count_calls()`) and given a latency (`default_household(latency=0.05)`); that is how the responsiveness
-limits in `tests/test_sonos_emulator.py` are set. `house.fail(...)` injects a SoCo error. Models carry their real
-capability sets (Arc has satellites, Move 2 a battery, Port fixed volume), and reading an unsupported setting raises
-`AttributeError` the way SoCo does.
+limits in `tests/test_sonos_emulator.py` are set. `house.fail(...)` injects a SoCo error.
+
+`MODELS` in `sonos.py` lists the products the add-on is meant for. Like SoCo, a simulated speaker decides from its
+model name whether it is a soundbar or an Ultra soundbar, and from its bonded speakers whether it has surrounds or
+a subwoofer: `house.home_theater(...)`, `house.stereo_pair(...)` and `house.multi_zone(...)` (an Amp Multi: one
+address, a port per room) build them, with the bonded speakers invisible. Reading a setting a model lacks raises
+`AttributeError`, or the UPnP error the model gives (a Port asked about touch controls). `player.online = False`
+makes one speaker time out and only that one. `product_household()` has one of every kind, and
+`tests/test_sonos_products.py` walks it; its `SoCoDrift` tests fail when a name the add-on or the simulator uses is
+not the vendored SoCo's, which is what keeps a SoCo update honest.
 
 `Session(network="real")` keeps the vendored SoCo, so the add-on performs genuine discovery and control on the LAN.
 Use it only against speakers you are willing to have change state.
@@ -168,6 +183,7 @@ add-on and real key presses.
 .\sandbox\Run-Sandbox.ps1 -Scenario smoke
 .\sandbox\Run-Sandbox.ps1 -Scenario alarms -Nvda 2026.3
 .\sandbox\Run-Sandbox.ps1 -Scenario norooms -Household empty
+.\sandbox\Run-Sandbox.ps1 -Scenario products -Household products
 .\sandbox\Run-Sandbox.ps1 -Stop
 ```
 
@@ -196,6 +212,9 @@ Scenarios:
   its largest hour.
 - `settings` - the settings sweep, and the room named once rather than twice.
 - `norooms` - an empty household is reported instead of hanging.
+- `groups` - G groups two rooms, Shift+G breaks them up and then says the room is not grouped, T moves the music.
+- `products` - with `-Household products`: all 22 rooms answer, the Arc Ultra on TV and its speech enhancement, a
+  Move 2's battery, a Port at fixed output.
 
 Every scenario also fails if NVDA logged an error or left a crash dump; the agent keeps the log written while NVDA
 closes as `nvda-closing.log`, since a restarted NVDA writes its log anew.
