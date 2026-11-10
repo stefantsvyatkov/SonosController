@@ -245,7 +245,7 @@ def tab_to(run, pattern, name, tries=8):
 
 def enter_layer(run):
     """Turn the layer on and wait for the room it reports."""
-    run.press_and_hear(TOGGLE, r"^Connecting\.$", "layer announces it is connecting")
+    run.press_and_hear(TOGGLE, r"^Connecting\.\.\.$", "layer announces it is connecting")
     return run.hear(r"Sonos", "the selected room is announced", timeout=20)
 
 
@@ -386,11 +386,11 @@ def scenario_groups(run):
     run.press_and_hear("right", r"selected", "Right reaches the next room")
     run.press_and_hear("space", r", selected", "Space selects it")
     run.press_and_hear("enter", r"^Playing rooms: ", "Enter groups the rooms")
-    run.press_and_hear("shift+g", r"^Group broken up\. Living Room keeps playing\.$",
+    run.press_and_hear("shift+g", r"^Rooms ungrouped\. Living Room keeps playing\.$",
                        "Shift+G breaks the group up and names the room that plays on")
     run.press_and_hear("shift+g", r"^Living Room is not grouped\.$",
                        "Shift+G on a room alone says so")
-    run.press_and_hear("t", r"^Transfer: Living Room to ", "T offers a free room")
+    run.press_and_hear("t", r"^Transfer from Living Room to ", "T offers a free room")
     run.press_and_hear("space", r"^Audio transferred to ", "Space moves the music")
     run.press_and_hear(TOGGLE, r".", "the layer toggles off")
 

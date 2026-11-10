@@ -113,7 +113,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.controller.execute("playPause"), "Stopped")
         self.assertEqual(self.era.calls, ["stop"])
         self.assertEqual(self.controller.execute("playPause"), "Play")
-        self.assertIn("not available", self.controller.execute("next"))
+        self.assertIn("unavailable", self.controller.execute("next"))
         self.assertNotIn("next", self.era.calls)
 
     def test_radio_metadata_fallback(self):
@@ -131,7 +131,7 @@ class ControllerTests(unittest.TestCase):
         def unsupported(timeout):
             raise NotSupportedException()
         self.era.get_battery_info = unsupported
-        self.assertIn("not available", self.controller.execute("battery"))
+        self.assertIn("unavailable", self.controller.execute("battery"))
 
 
 if __name__ == "__main__":

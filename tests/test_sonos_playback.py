@@ -33,7 +33,7 @@ class PlaybackConfirmationTests(unittest.TestCase):
 
     def test_selection_timeout_does_not_play_wrong_source(self):
         player = SimpleNamespace(play=Mock())
-        with self.assertRaisesRegex(RuntimeError, "selection could not"):
+        with self.assertRaisesRegex(RuntimeError, "Could not confirm the selected source"):
             select_and_play(player, Mock(side_effect=TimeoutError()), lambda: False)
         player.play.assert_not_called()
 

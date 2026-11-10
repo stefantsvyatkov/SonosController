@@ -25,118 +25,118 @@ li {
 
 <h1 align="center">Sonos Controller</h1>
 
-<p>This add-on controls Sonos speakers from the keyboard, directly over your home network, without the Sonos app. The following features are supported:</p>
+<p>Sonos Controller lets you control Sonos speakers using NVDA and your keyboard, without opening the Sonos app. It communicates with the speakers directly over your local network. The following features are supported:</p>
 
 <ul>
-<li>Choosing a room or group and changing its volume.</li>
-<li>Play, pause, next and previous track, and jumping 10 seconds back or forward.</li>
-<li>Hearing what is playing, the elapsed and remaining time, and the battery of a portable speaker.</li>
-<li>Grouping rooms, breaking a group up, and moving the music to another room.</li>
-<li>Playing your Sonos Favorites, an internet radio address, or music files from this computer.</li>
-<li>Creating, editing, turning on and off, and deleting alarms.</li>
-<li>The sleep timer.</li>
-<li>Speaker settings such as bass, treble, night mode, speech enhancement and subwoofer level.</li>
-<li>Shuffle, repeat and crossfade for the Sonos queue.</li>
+<li>Selecting a room or group, adjusting its volume, and muting or unmuting it.</li>
+<li>Controlling playback, skipping tracks, and seeking 10 seconds forward or backward.</li>
+<li>Announcing what is playing, elapsed and remaining track time, and the battery level of portable speakers.</li>
+<li>Grouping and ungrouping rooms, and transferring playback between rooms.</li>
+<li>Playing Sonos Favorites, internet audio streams, and music files stored on your computer.</li>
+<li>Creating, editing, enabling, disabling, and deleting alarms.</li>
+<li>Setting a sleep timer.</li>
+<li>Adjusting supported speaker settings, including bass, treble, night mode, speech enhancement, and subwoofer level.</li>
+<li>Controlling shuffle, repeat, and crossfade for the Sonos queue.</li>
 </ul>
 
-<p>You need NVDA 2026.2 or later. The speakers must be on the same network as the computer. The add-on is in English.</p>
+<p>Sonos Controller requires NVDA 2026.2 or later. Your computer and Sonos speakers must be connected to the same local network. The add-on is currently available in English only.</p>
 
-<h2>How to use the add-on</h2>
+<h2 align="center">How to use the add-on</h2>
 
-<p>Press NVDA+Shift+Control+S to turn on the Sonos layer. The add-on finds your speakers and names the selected room and its volume. Press NVDA+Shift+Control+S again to turn the layer off.</p>
+<p>Press NVDA+Shift+Control+S to activate the Sonos command layer. The add-on discovers your speakers and announces the selected room and its volume. Press the same shortcut again to deactivate the layer.</p>
 
-<p>While the layer is on, the keys below control Sonos. Any other key turns the layer off and does its usual job, so the layer is safe to leave on. Escape also turns it off.</p>
+<p>While the layer is active, use the following keyboard commands. Keys that are not assigned to Sonos deactivate the layer and perform their usual actions. You can also press Escape to leave the layer.</p>
 
 <ul>
-<li>Left Arrow and Right Arrow - Choose a room or group. Its volume is announced.</li>
-<li>Up Arrow and Down Arrow - Change the volume by 1.</li>
-<li>Page Up and Page Down - Change the volume by 5.</li>
-<li>M - Mute or unmute.</li>
-<li>Space - Play or pause. A radio station that cannot pause is stopped.</li>
-<li>Control+Right Arrow and Control+Left Arrow - Next or previous track.</li>
-<li>Control+Shift+Right Arrow and Control+Shift+Left Arrow - Jump 10 seconds forward or back.</li>
-<li>P - Say what is playing. Press it twice quickly to copy the title and artist.</li>
-<li>E - Say the elapsed time.</li>
-<li>R - Say the remaining time.</li>
-<li>B - Say the battery level of a portable speaker.</li>
-<li>G - Group rooms.</li>
-<li>Shift+G - Break up the selected group.</li>
-<li>T - Move the music to another room.</li>
+<li>Left Arrow and Right Arrow - Select the previous or next room or group. Its volume is announced.</li>
+<li>Up Arrow and Down Arrow - Increase or decrease the volume by 1%.</li>
+<li>Page Up and Page Down - Increase or decrease the volume by 5%.</li>
+<li>M - Mute or unmute the selected room or group.</li>
+<li>Space - Play or pause. Radio streams that cannot be paused are stopped instead.</li>
+<li>Control+Right Arrow and Control+Left Arrow - Skip to the next or previous track.</li>
+<li>Control+Shift+Right Arrow and Control+Shift+Left Arrow - Seek 10 seconds forward or backward.</li>
+<li>P - Announce what is playing. Press twice quickly to copy the track title and artist.</li>
+<li>E - Announce the elapsed track time.</li>
+<li>R - Announce the remaining track time.</li>
+<li>B - Announce the battery level of a portable speaker.</li>
+<li>G - Open room grouping.</li>
+<li>Shift+G - Ungroup the selected room group.</li>
+<li>T - Transfer playback to another room.</li>
 <li>F - Sonos Favorites.</li>
-<li>U - Play an internet radio or audio address.</li>
-<li>Control+F - Play a music file or folder from this computer.</li>
+<li>U - Play an internet radio stream or another audio URL.</li>
+<li>Control+F - Play an audio file or folder from your computer.</li>
 <li>A - Alarms.</li>
 <li>S - Sleep timer.</li>
 <li>Control+S - Speaker settings.</li>
-<li>Control+P - Queue settings: shuffle, repeat and crossfade.</li>
+<li>Control+P - Queue settings: shuffle, repeat, and crossfade.</li>
 </ul>
 
-<p>Some sources do not allow every command, for example skipping tracks on a radio station. The add-on then says so.</p>
+<p>Available commands depend on the playback source. For example, an internet radio station may not support skipping tracks. The add-on announces when an operation is unavailable.</p>
 
-<p>The letters G, T, F, A, S, Control+S and Control+P open a menu. Press the same key again or Escape to leave it. A key of the layer that the menu does not use leaves the menu and does its usual job.</p>
+<p>G, T, F, A, S, Control+S, and Control+P open additional controls. Press the same shortcut again or Escape to close them. A Sonos command not used by the current menu closes that menu and performs its normal function.</p>
 
-<h2>Groups</h2>
+<h2 align="center">Groups</h2>
 
-<p>Press G to group rooms with the selected one, which must be playing. Left Arrow and Right Arrow choose a room, and Space adds or removes it. Enter makes the group. The music that was playing continues in every room of the group.</p>
+<p>Press G to group other rooms with the selected room, which must already be playing. Use Left Arrow and Right Arrow to browse available rooms, and Space to select or deselect them. Press Enter to apply the grouping. Playback continues across the group.</p>
 
-<p>Press Shift+G to break up the selected group. The room that was playing keeps playing, and the other rooms stop and become separate rooms again.</p>
+<p>Press Shift+G to ungroup the selected group. Playback continues in the original room; the other rooms stop playing and become separate rooms.</p>
 
-<p>Press T to move the music from the selected room, playing on its own, to a room that is free. Left Arrow and Right Arrow choose the room, and Space or Enter moves the music there. The new room gets the same volume.</p>
+<p>Press T to transfer playback from the selected room to an available, ungrouped room. The source room must be playing on its own. Use Left Arrow and Right Arrow to select the destination, then press Space or Enter to confirm. The destination inherits the source room’s volume.</p>
 
-<p>In both menus, Up Arrow and Down Arrow still change the volume.</p>
+<p>In the grouping and transfer menus, Up Arrow and Down Arrow continue to adjust the volume.</p>
 
-<h2>Favorites, addresses and files</h2>
+<h2 align="center">Favorites, addresses and files</h2>
 
-<p>Press F for your Sonos Favorites. Up Arrow and Down Arrow choose one, and Page Up and Page Down move five at a time. Enter plays it.</p>
+<p>Press F to browse Sonos Favorites. Use Up Arrow and Down Arrow to select an item, or Page Up and Page Down to move five items at a time. Press Enter to play the selected favorite.</p>
 
-<p>Press U to play an audio address, for example an internet radio station. If the clipboard holds a link, it is filled in for you. Direct streams and M3U or PLS playlists work. Ordinary web pages do not.</p>
+<p>Press U to enter an audio URL, such as an internet radio stream. If your clipboard contains a link, the address field is filled in automatically. The add-on supports direct audio streams and M3U or PLS playlists, but not ordinary web pages.</p>
 
-<p>Press Control+F to play a music file or a whole folder from this computer. A folder can hold up to 1000 audio files, which play in name order. The music replaces what was in the Sonos queue. NVDA sends the music to the speaker itself, so keep NVDA running and the computer awake while it plays. If Windows Firewall asks about NVDA, allow access on private networks.</p>
+<p>Press Control+F to select an audio file or a folder on your computer. Up to 1,000 audio files can be loaded from a folder and played in filename order. This replaces the existing Sonos queue. The add-on serves local audio to the speaker through NVDA, so NVDA must remain running and the computer must stay awake during playback. If Windows Firewall prompts you, allow NVDA to communicate on private networks.</p>
 
-<p>Some radio streams, often Ogg or Opus, are refused by the speaker. The add-on can then convert them with the free program FFmpeg. It asks you first and downloads FFmpeg only once. The download is about 109 MB and can be cancelled. FFmpeg stays available after updates of the add-on.</p>
+<p>Some audio streams, particularly Ogg or Opus streams, may not play directly on Sonos speakers. When conversion is needed, the add-on can use FFmpeg. It asks for permission before downloading this free program (approximately 109 MB). The download can be cancelled, and FFmpeg remains installed when the add-on is updated.</p>
 
-<h2>Alarms</h2>
+<h2 align="center">Alarms</h2>
 
-<p>Press A for the alarms. Up Arrow and Down Arrow choose an alarm. Space turns it on or off. Enter edits it, N creates a new one, and Delete removes it after you confirm.</p>
+<p>Press A to manage alarms. Use Up Arrow and Down Arrow to select an alarm. Press Space to enable or disable it, Enter to edit it, N to create a new alarm, or Delete to remove it after confirmation.</p>
 
-<p>The alarm window opens on the hour. Tab moves between the time, the room, how often the alarm repeats, the volume, the sound and how long it plays.</p>
+<p>The alarm dialog initially focuses the hour field. Press Tab to move between the time, room, repeat schedule, volume, sound, and duration controls.</p>
 
 <ul>
-<li>In the hour and minute lists, Up Arrow gives the next larger number. After the largest comes the smallest again.</li>
-<li>Page Up and Page Down move 5. Home and End go to the first and last number.</li>
-<li>A custom duration stops at its largest and smallest value.</li>
-<li>A new alarm repeats once, unless you choose otherwise.</li>
+<li>In the hour and minute controls, Up Arrow increases the value. The value wraps to the beginning after reaching the maximum.</li>
+<li>Page Up and Page Down change the value by 5. Home and End move to the minimum and maximum.</li>
+<li>Custom duration values do not wrap beyond their minimum or maximum.</li>
+<li>New alarms are set to repeat once by default.</li>
 </ul>
 
-<p>The speaker's own clock decides when the alarm rings.</p>
+<p>Alarms run according to the speaker’s clock.</p>
 
-<h2>Sleep timer</h2>
+<h2 align="center">Sleep timer</h2>
 
-<p>Press S for the sleep timer. Left Arrow and Right Arrow choose Off or 5 to 90 minutes. Down Arrow goes to a custom time of 1 to 90 minutes, set with Left Arrow and Right Arrow. Enter starts the timer.</p>
+<p>Press S to open the sleep timer. Use Left Arrow and Right Arrow to choose Off or a preset duration between 5 and 90 minutes. Press Down Arrow to select a custom duration between 1 and 90 minutes, then adjust it with Left Arrow and Right Arrow. Press Enter to apply the timer.</p>
 
-<h2>Speaker settings</h2>
+<h2 align="center">Speaker settings</h2>
 
-<p>Press Control+S for the settings of the selected room. Up Arrow and Down Arrow choose a setting. Left Arrow and Right Arrow change it at once, and Page Up and Page Down change it by 5. The speaker is named when you reach it. In a group, the settings of every room are in the list.</p>
+<p>Press Control+S to adjust the selected room’s speaker settings. Use Up Arrow and Down Arrow to browse settings. Left Arrow and Right Arrow apply changes immediately, while Page Up and Page Down adjust numeric values by 5. The add-on announces each speaker as you reach its settings. For grouped rooms, the list includes settings for each speaker.</p>
 
-<p>Only the settings a speaker offers are shown. They can include:</p>
+<p>Only settings supported by the selected speaker are available. Depending on the model and configuration, these may include:</p>
 
 <ul>
-<li>Bass and treble, from -10 to 10.</li>
-<li>Loudness, the status light and the touch controls.</li>
+<li>Bass and treble adjustments from -10 to +10.</li>
+<li>Loudness, status light, and touch controls.</li>
 <li>Balance.</li>
-<li>Trueplay, when the speaker has been tuned.</li>
-<li>Night mode, speech enhancement and TV dialog sync, on a soundbar or an Amp.</li>
-<li>The surround speakers and their levels, when a soundbar has them.</li>
-<li>The subwoofer and its level, when the room has one.</li>
-<li>The subwoofer crossover, on an Amp.</li>
-<li>Fixed line output, on a Port or Connect.</li>
+<li>Trueplay calibration, where available.</li>
+<li>Night mode, speech enhancement, and TV dialog sync on compatible home theater devices.</li>
+<li>Surround speaker settings and levels, when configured.</li>
+<li>Subwoofer settings and level, when configured.</li>
+<li>Subwoofer crossover frequency on an Amp.</li>
+<li>Fixed line output on a Port or Connect.</li>
 </ul>
 
-<p>Press Control+P for the queue settings: shuffle, repeat and crossfade. They work while the Sonos queue is playing.</p>
+<p>Press Control+P to adjust shuffle, repeat, and crossfade. These settings are available when playback uses the Sonos queue.</p>
 
-<h2>Supported speakers</h2>
+<h2 align="center">Supported speakers</h2>
 
-<p>The add-on works with the speakers you control in the Sonos app:</p>
+<p>The add-on supports Sonos devices that are accessible through local network control, including:</p>
 
 <ul>
 <li>Speakers: Era 100, Era 300, Era 100 Pro, Five, One and One SL, and the IKEA SYMFONISK speakers.</li>
@@ -147,33 +147,27 @@ li {
 <li>Older speakers that still work with the Sonos S1 app.</li>
 </ul>
 
-<h2>Notes</h2>
+<h2 align="center">Notes</h2>
 
 <ul>
-<li>A stereo pair, or a soundbar with its surround speakers and subwoofer, is one room.</li>
-<li>A portable speaker that is asleep or away from the network is not listed. Turn the layer off and on again once it is back.</li>
-<li>Turn the layer off and on again to find speakers you have just added.</li>
-<li>The add-on remembers where your speakers are, so the next start is faster.</li>
-<li>The add-on does not work on secure screens, such as the Windows sign-in screen.</li>
+<li>A stereo pair is treated as one room. The same applies to a soundbar with bonded surround speakers or a subwoofer.</li>
+<li>Portable speakers that are asleep or disconnected from the network may not appear. Reactivate the Sonos layer once they are available.</li>
+<li>To discover newly added speakers, deactivate and reactivate the Sonos layer.</li>
+<li>The add-on caches speaker information to speed up subsequent connections.</li>
+<li>Sonos controls are unavailable on secure screens, including the Windows sign-in screen.</li>
 </ul>
 
-<h2>Limitations</h2>
+<h2 align="center">Limitations</h2>
 
 <ul>
-<li>Music services such as Spotify cannot be browsed from the add-on. Save what you like as a Sonos Favorite in the Sonos app, and play it with F.</li>
-<li>Switching a speaker to its TV or line-in input is done in the Sonos app.</li>
+<li>You cannot browse music services such as Spotify from the add-on. To access music from these services, save it as a Sonos Favorite in the Sonos app, then use F to play it.</li>
+<li>TV and line-in sources must be selected through the Sonos app.</li>
 <li>Sonos Ace headphones are not supported.</li>
 </ul>
 
-<h2>Changelog</h2>
+<h2 align="center">Final Clarifications</h2>
 
-<h3>Version 1.0</h3>
-
-<p>The first release.</p>
-
-<h2>Final Clarifications</h2>
-
-<p>This add-on was developed with the assistance of Claude. It is distributed under the GNU General Public License 2.0.</p>
+<p>This add-on was developed with the assistance of Claude. It is distributed under the GNU General Public License, version 2.</p>
 
 </body>
 </html>

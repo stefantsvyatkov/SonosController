@@ -74,26 +74,26 @@ class Controller:
         parts = []
         for p in self.members(group):
             try:
-                parts.append(_("{room}, {volume} percent").format(room=p.player_name, volume=p.volume)
-                             + (_(", muted") if p.mute else ""))
+                status = _("{room}, {volume} percent, muted") if p.mute else _("{room}, {volume} percent")
+                parts.append(status.format(room=p.player_name, volume=p.volume))
             except Exception as error:
                 # A grouped portable that went to sleep still leaves the others to hear.
                 if not transient(error):
                     raise
-                parts.append(_("{room}, not answering").format(room=p.player_name))
+                parts.append(_("{room}, not responding").format(room=p.player_name))
         return "; ".join(parts) or self.label(group)
 
     def execute(self, action):
         if action == "open":
             self.refresh()
-            return _("Sonos, ") + self.describe(self.current())
+            return _("Sonos, {status}").format(status=self.describe(self.current()))
         if action in ("left", "right"):
             groups = self.groups()
             current = self.current()
             index = next((i for i, g in enumerate(groups)
                           if g.coordinator.uid == current.coordinator.uid), None)
             if index is None:
-                raise RuntimeError(_("Room grouping changed. Try again."))
+                raise RuntimeError(_("Room grouping has changed. Try again."))
             group = groups[(index + (1 if action == "right" else -1)) % len(groups)]
             self.select(group)
             return self.describe(group)
@@ -113,10 +113,10 @@ class Controller:
             title = str(track.get("title") or "").strip()
             if (uri.startswith(("x-sonos-htastream:", "x-rincon-stream:"))
                     or title in ("", "NOT_IMPLEMENTED")):
-                return _("Track not available to copy.")
+                return _("Track information cannot be copied.")
             if (uri.startswith(("x-sonosapi-stream:", "x-sonosapi-radio:", "x-rincon-mp3radio:"))
                     and not track.get("artist")):
-                return _("Track not available to copy.")
+                return _("Track information cannot be copied.")
             text = " — ".join(str(track.get(k) or "").strip()
                               for k in ("title", "artist") if track.get(k))
             return {"copy": text}
@@ -125,14 +125,14 @@ class Controller:
             position, duration = seconds(track.get("position")), seconds(track.get("duration"))
             if (not {"Seek", "X_DLNA_SeekTime"}.intersection(self.transport_actions(player))
                     or position is None or not duration):
-                return _("Seeking not available.")
+                return _("Seeking unavailable.")
             target = max(0, min(duration - 1, position + (10 if action == "seekForward" else -10)))
             stamp = timestamp(target)
             try:
                 player.seek(position=stamp)
             except Exception as error:
                 if str(getattr(error, "error_code", "")) in REJECTED_CODES:
-                    return _("Seeking not available.")
+                    return _("Seeking unavailable.")
                 raise
             return _("Position {time}").format(time=stamp)
         if action == "battery":
@@ -156,14 +156,12 @@ class Controller:
                 level = info.get("Level")
                 if level is not None:
                     power = str(info.get("PowerSource", "")).replace("_", " ").lower()
-                    report = _("{room}, battery {level} percent").format(
-                        room=room.player_name, level=level)
-                    if power:
-                        report += _(", power source {source}").format(source=power)
-                    reports.append(report)
+                    report = (_("{room}, battery {level} percent, power source {source}") if power
+                              else _("{room}, battery {level} percent"))
+                    reports.append(report.format(room=room.player_name, level=level, source=power))
             if reports:
                 return "; ".join(reports)
-            return _("Battery could not be read.") if unread else _("Battery not available.")
+            return _("Could not read battery level.") if unread else _("Battery information unavailable.")
         if action in VOLUME_STEPS or action == "mute":
             try:
                 if action == "mute":
@@ -189,17 +187,17 @@ class Controller:
                 player.pause()
                 return _("Pause")
             if "Play" not in actions:
-                return _("Nothing to play. Select music in Sonos.")
+                return _("Nothing to play. Select music in the Sonos app.")
             player.play()
             return _("Play")
         if action in ("previous", "next"):
             if action.capitalize() not in self.transport_actions(player):
-                return _("Track skipping not available.")
+                return _("Track skipping unavailable.")
             try:
                 getattr(player, action)()
             except Exception as error:
                 if str(getattr(error, "error_code", "")) in ("701", "711"):
-                    return _("Track skipping not available.")
+                    return _("Track skipping unavailable.")
                 raise
             return _("Previous track") if action == "previous" else _("Next track")
         if action == "playing":
@@ -212,7 +210,7 @@ class Controller:
                     pass
             state = player.get_current_transport_info()["current_transport_state"]
             return describe(track, state.replace("_", " ").lower())
-        raise ValueError(_("That Sonos command is not available."))
+        raise ValueError(_("This Sonos command is unavailable."))
 
     def fixed_rooms(self, group):
         names = []

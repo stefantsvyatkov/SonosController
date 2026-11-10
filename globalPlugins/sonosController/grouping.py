@@ -37,7 +37,7 @@ def wait_for(cancelled, player, condition, poll=refresh):
             if not _transient(error):
                 raise
         time.sleep(0.2)
-    raise RuntimeError(_("Group update not confirmed."))
+    raise RuntimeError(_("Group update could not be confirmed."))
 
 
 def change(cancelled, operation, player, condition, poll=refresh):
@@ -69,12 +69,12 @@ def break_up(controller, cancelled):
                 return PARTIAL
     except Exception as error:
         if changed:
-            raise RuntimeError(_("Breaking up the group failed. Some rooms may still be grouped.")) from error
+            raise RuntimeError(_("Could not ungroup the rooms. Some may still be grouped.")) from error
         raise
     controller.select(source.group)
     if playing:
-        return _("Group broken up. {room} keeps playing.").format(room=source.player_name)
-    return _("Group broken up.")
+        return _("Rooms ungrouped. {room} keeps playing.").format(room=source.player_name)
+    return _("Rooms ungrouped.")
 
 
 class Grouping:
@@ -83,7 +83,7 @@ class Grouping:
         self.cancelled = cancelled
         self.source = controller.current().coordinator
         if self.source.get_current_transport_info()["current_transport_state"] != "PLAYING":
-            raise RuntimeError(_("Select a playing room."))
+            raise RuntimeError(_("Select a room that is playing."))
         self.rooms = list(controller.rooms)
         self.refresh(self.source)
         self.original = self.member_ids(self.source.group)
@@ -120,12 +120,12 @@ class Grouping:
 
     def commit(self):
         if not self.selected:
-            raise RuntimeError(_("Select at least one room. Start group selection again."))
+            raise RuntimeError(_("Select at least one room. Start grouping again."))
         if self.cancelled():
             return _("Grouping cancelled.")
         self.refresh(self.source)
         if self.member_ids(self.source.group) != self.original or self.source.group.coordinator.uid != self.source.uid:
-            raise RuntimeError(_("Group changed. Reopen G."))
+            raise RuntimeError(_("Group changed. Open grouping again."))
         changed = False
         try:
             # Add destinations before removing any source, keeping playback alive.
@@ -152,9 +152,9 @@ class Grouping:
             if not self.wait_for(target, lambda: self.member_ids(target.group) == self.selected):
                 return PARTIAL
             self.controller.select(target.group)
-            return _("Playing rooms: ") + ", ".join(
-                p.player_name for p in self.rooms if p.uid in self.selected)
+            return _("Playing rooms: {rooms}").format(rooms=", ".join(
+                p.player_name for p in self.rooms if p.uid in self.selected))
         except Exception as error:
             if changed:
-                raise RuntimeError(_("Grouping failed. Some changes may remain. Check G.")) from error
+                raise RuntimeError(_("Grouping failed. Some changes may remain. Check the groups.")) from error
             raise

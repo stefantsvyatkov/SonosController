@@ -21,7 +21,7 @@ class PlaybackSettings:
     def check_source(self):
         uri = self.player.get_current_media_info().get("uri", "")
         if not uri.startswith("x-rincon-queue:"):
-            raise RuntimeError(_("Playback settings require a Sonos queue."))
+            raise RuntimeError(_("Playback settings require the Sonos queue."))
 
     def read(self):
         value = getattr(self.player, self.options[self.index][0])
@@ -52,5 +52,5 @@ class PlaybackSettings:
                 if self.read() == value:
                     break
             else:
-                raise RuntimeError(_("{label} was not applied.").format(label=label))
+                raise RuntimeError(_("Could not apply {label}.").format(label=label))
         return self.describe()

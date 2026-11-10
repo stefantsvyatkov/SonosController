@@ -35,17 +35,17 @@ def describe_network_error(error):
     """
     exceptions = vendors.requests().exceptions
     if isinstance(error, exceptions.SSLError):
-        return _("The station's secure connection could not be established.")
+        return _("Could not establish a secure connection to the station.")
     if isinstance(error, exceptions.ConnectTimeout):
-        return _("The audio address did not answer in time.")
+        return _("The audio URL timed out.")
     if isinstance(error, exceptions.ReadTimeout):
-        return _("The audio address stopped responding.")
+        return _("The audio URL stopped responding.")
     if isinstance(error, exceptions.TooManyRedirects):
-        return _("Playlist or redirect loop.")
+        return _("Playlist or redirect loop detected.")
     if isinstance(error, exceptions.ConnectionError):
-        return _("Could not reach the audio address. Check the address and the network.")
+        return _("Could not reach the audio URL. Check the URL and your network connection.")
     if isinstance(error, exceptions.RequestException):
-        return _("The audio address could not be read.")
+        return _("Could not read the audio URL.")
     return None
 
 
@@ -108,9 +108,9 @@ def clean_url(url):
     try:
         port = parts.port
     except ValueError as error:
-        raise RuntimeError(_("Invalid URL port.")) from error
+        raise RuntimeError(_("Invalid port in URL.")) from error
     if port is not None and not 1 <= port <= 65535:
-        raise RuntimeError(_("Invalid URL port."))
+        raise RuntimeError(_("Invalid port in URL."))
     return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path, parts.query, ""))
 
 
@@ -127,13 +127,13 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
         if cancelled():
             raise Cancelled()
         if time.monotonic() >= deadline or budget[0] <= 0:
-            raise RuntimeError(_("Audio address took too long to resolve."))
+            raise RuntimeError(_("Audio URL lookup timed out."))
 
     def resolve(address, depth, visited):
         check()
         address = clean_url(address)
         if address in visited or depth > 4:
-            raise RuntimeError(_("Playlist or redirect loop."))
+            raise RuntimeError(_("Playlist or redirect loop detected."))
         visited = visited | {address}
         budget[0] -= 1
         try:
@@ -153,19 +153,19 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
             if status in (301, 302, 303, 307, 308):
                 location = headers.get("location")
                 if not location:
-                    raise RuntimeError(_("Redirect has no address."))
+                    raise RuntimeError(_("Redirect has no URL."))
                 target = clean_url(urljoin(address, location))
                 if urlsplit(address).scheme == "https" and urlsplit(target).scheme != "https":
-                    raise RuntimeError(_("Insecure HTTPS redirect rejected."))
+                    raise RuntimeError(_("Insecure redirect from HTTPS rejected."))
                 return resolve(target, depth + 1, visited)
             if status in (401, 403):
-                raise RuntimeError(_("This audio address requires access permission."))
+                raise RuntimeError(_("This audio URL requires authorization."))
             response.raise_for_status()
             mime = headers.get("content-type", "").split(";", 1)[0].strip().lower()
             path = urlsplit(address).path.lower()
             extension = os.path.splitext(path)[1]
             if mime in ("text/html", "application/xhtml+xml"):
-                raise RuntimeError(_("This is a web page. Use a direct audio URL."))
+                raise RuntimeError(_("This is a web page. Enter a direct audio URL."))
             playlist = mime in PLAYLIST_MIME or extension in (".m3u", ".m3u8", ".pls")
             if playlist:
                 data = bytearray()
@@ -208,15 +208,15 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
                         raise
                     except Exception as error:
                         last_error = error
-                raise RuntimeError(_("Playlist has no reachable audio address.")) from last_error
+                raise RuntimeError(_("Playlist contains no reachable audio URL.")) from last_error
             if mime and not (mime.startswith("audio/") or mime in ("application/ogg", "application/octet-stream", "binary/octet-stream")):
-                raise RuntimeError(_("The address does not return audio."))
+                raise RuntimeError(_("The URL does not return audio."))
             # Unknown MIME types need a small bounded sniff, not a whole stream download.
             if mime in ("", "application/octet-stream", "binary/octet-stream", "application/ogg"):
                 sample = next(response.iter_content(512), b"")
                 check()
                 if sample.lstrip().lower().startswith((b"<!doctype html", b"<html")):
-                    raise RuntimeError(_("This is a web page. Use a direct audio URL."))
+                    raise RuntimeError(_("This is a web page. Enter a direct audio URL."))
                 if b"OpusHead" in sample:
                     mime = "audio/opus"
                 elif sample.startswith(b"OggS"):
@@ -286,7 +286,7 @@ def _confirmed_start(player, uri, meta, cancelled, progress, abort=None):
         if not transient(error):
             raise
         pending = error
-    progress(_("Starting."))
+    progress(_("Starting..."))
     # Acknowledgement of Play is not confirmation of decoding. Allow radio
     # buffering, and never reset the URI while the device is transitioning.
     deadline = time.monotonic() + 12
@@ -334,17 +334,16 @@ def _confirmed_start(player, uri, meta, cancelled, progress, abort=None):
     raise RuntimeError(NOT_STARTED) from pending
 
 
-NOT_STARTED = _("The speaker did not start the stream.")
+NOT_STARTED = _("The speaker did not start playing the stream.")
 
 
 def _raise_direct_error(source, error):
     code = str(getattr(error, "error_code", ""))
     if code in ("704", "714"):
-        raise RuntimeError(_("Audio format rejected by the speaker.")) from error
+        raise RuntimeError(_("The speaker rejected the audio format.")) from error
     if source.mime == "application/ogg" and str(error) == NOT_STARTED:
         raise RuntimeError(_(
-            "The speaker did not start this Ogg stream. "
-            "Try the station's MP3 or AAC address.")) from error
+            "The speaker did not start the Ogg stream. Try the station’s MP3 or AAC URL.")) from error
     raise error
 
 
@@ -375,7 +374,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
             return ""
         player = player.group.coordinator
         if source.mime == "audio/opus":
-            raise RuntimeError(_("Opus is not supported by direct Sonos URL playback."))
+            raise RuntimeError(_("Direct Sonos URL playback does not support Opus."))
         try:
             if _direct(player, source, cancelled, progress):
                 return _("Playing {title}").format(title=source.title)

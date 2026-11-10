@@ -124,7 +124,7 @@ class UrlTests(unittest.TestCase):
 
     def test_failed_ogg_has_actionable_error(self):
         source = urls.AudioSource('http://example.com/radio.ogg', 'radio', 'application/ogg', 'Radio')
-        with patch.object(urls, 'resolve_audio', return_value=source), patch.object(urls, '_confirmed_start', side_effect=RuntimeError('The speaker did not start the stream.')):
+        with patch.object(urls, 'resolve_audio', return_value=source), patch.object(urls, '_confirmed_start', side_effect=RuntimeError('The speaker did not start playing the stream.')):
             with self.assertRaisesRegex(RuntimeError, 'MP3 or AAC'):
                 urls.play_url(Player(), source.url)
 

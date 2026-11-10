@@ -35,14 +35,14 @@ def audio_files(path, recursive=False):
                 if not os.path.islink(candidate) and os.path.splitext(name)[1].lower() in MIME:
                     if len(files) >= MAX_FILES:
                         raise RuntimeError(
-                            _("Select a folder with at most {count} audio files.").format(
+                            _("Select a folder containing no more than {count} audio files.").format(
                                 count=MAX_FILES))
                     files.append(candidate)
     else:
         raise RuntimeError(_("File or folder not found."))
     files = [f for f in files if os.path.splitext(f)[1].lower() in MIME and os.path.getsize(f) > 0]
     if not files:
-        raise RuntimeError(_("No supported audio files."))
+        raise RuntimeError(_("No supported audio files found."))
     def order(filename):
         return tuple((1, int(part)) if part.isdigit() else (0, part.casefold())
                      for part in re.split(r"(\d+)", os.path.relpath(filename, path)))
@@ -226,13 +226,11 @@ class LocalFiles:
                     return ""
                 state = player.get_current_transport_info()
                 if state.get("current_transport_state") == "PLAYING" and server.was_requested(items[0].resources[0].uri):
-                    return _("Playing, {count} files.").format(count=len(items))
+                    return _("Playing {count} files.").format(count=len(items))
                 time.sleep(0.5)
-            return _("Files queued. Playback not confirmed; "
-                     "check the firewall and audio format.")
+            return _("Files added to the queue. Playback not confirmed. Check the firewall and audio format.")
         except Exception as error:
             blocked = added and not server.was_requested(items[0].resources[0].uri)
-            hint = _(" Check NVDA firewall access.") if blocked else ""
-            raise RuntimeError(
-                _("Local playback failed.{hint} {count} files added to the queue.").format(
-                    hint=hint, count=added)) from error
+            failure = (_("Local playback failed. Check firewall access for NVDA. {count} files added to the queue.")
+                       if blocked else _("Local playback failed. {count} files added to the queue."))
+            raise RuntimeError(failure.format(count=added)) from error

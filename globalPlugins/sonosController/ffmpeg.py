@@ -192,7 +192,7 @@ def install(progress=None, cancelled=lambda: False):
                 if progress:
                     progress(done, total)
         if digest.hexdigest() != SHA256:
-            raise ValueError(_("The download is not the expected FFmpeg."))
+            raise ValueError(_("The downloaded file is not the expected FFmpeg executable."))
         unpacked = work / "unpacked"
         unpacked.mkdir()
         with zipfile.ZipFile(archive) as zipped:

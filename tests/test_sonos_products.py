@@ -80,7 +80,7 @@ class Rooms(unittest.TestCase):
         for name in ROOMS:
             self.session.select_room(name)
             self.assertEqual(self.session.press("kb:b")[-1],
-                             expected.get(name, "Battery not available."), name)
+                             expected.get(name, "Battery information unavailable."), name)
 
     def test_what_is_playing_names_the_source(self):
         self.session.select_room("Living Room")
@@ -104,7 +104,7 @@ class Rooms(unittest.TestCase):
         bar = self.house.find("Living Room")
         self.assertEqual(self.house.find("Kitchen")._coordinator, bar.uid)
         self.assertEqual(self.session.press("kb:shift+g")[-1],
-                         "Group broken up. Living Room keeps playing.")
+                         "Rooms ungrouped. Living Room keeps playing.")
         # The soundbar keeps its rear speakers and subwoofer.
         self.assertEqual(sum(p._coordinator == bar.uid for p in self.house.players), 4)
         self.assertEqual(self.house.find("Kitchen").playback.state, "STOPPED")
@@ -164,7 +164,7 @@ class Settings(unittest.TestCase):
         for label in ("Surround speakers", "Surround TV level", "Surround music level",
                       "Subwoofer", "Subwoofer level", "TV dialog sync"):
             self.assertIn(label, offered)
-        self.assertNotIn("Subwoofer crossover Hz", offered)
+        self.assertNotIn("Subwoofer crossover (Hz)", offered)
 
     def test_soundbar_alone_has_no_surround_or_sub(self):
         offered = labels(self.house, "Guest Room")
@@ -190,7 +190,7 @@ class Settings(unittest.TestCase):
 
     def test_amp_offers_crossover_and_tv_settings(self):
         offered = labels(self.house, "Terrace")
-        for label in ("Subwoofer crossover Hz", "Subwoofer level", "Night mode"):
+        for label in ("Subwoofer crossover (Hz)", "Subwoofer level", "Night mode"):
             self.assertIn(label, offered)
 
     def test_port_and_connect_offer_fixed_output_without_touch_controls(self):
@@ -280,7 +280,7 @@ class Battery(unittest.TestCase):
         controller.rooms = [patio]
         patio_group = simulator.SimGroup(patio, [patio])
         controller.current = lambda: patio_group
-        self.assertEqual(controller.execute("battery"), "Battery could not be read.")
+        self.assertEqual(controller.execute("battery"), "Could not read battery level.")
 
 
 class SilentMember(unittest.TestCase):
@@ -295,5 +295,5 @@ class SilentMember(unittest.TestCase):
         patio.online = False
         session.press("kb:rightArrow")
         self.assertEqual(session.press("kb:leftArrow")[-1],
-                         "Kitchen, 25 percent; Patio, not answering")
+                         "Kitchen, 25 percent; Patio, not responding")
         self.assertRegex(session.press("kb:upArrow")[-1], r"^\d+ percent$")

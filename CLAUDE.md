@@ -36,6 +36,10 @@ matches `manifest.ini`. Restart NVDA after updating the checkout, and do not ins
 
 - The interface is English. Strings go through gettext (`i18n.py`), so a translation can be added later without
   touching the code.
+- Every message is one whole string with placeholders (`Group. {rooms}. Press Space to select, Enter to apply.`),
+  never pieces joined with punctuation: the owner reviews and edits the list, and a translator needs whole
+  sentences (the owner's poll answer, 10 November 2026). Text that goes inside a comma list (a room name, track
+  details) has no full stop of its own. The owner's wording, edited on 10 November 2026, is the reference.
 - Commit messages are one short line in the imperative, with no body and no trailer.
 - The layer's keys are fixed; there is no NVDA settings panel.
 

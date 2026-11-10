@@ -9,9 +9,9 @@ class Transfer:
         self.cancelled = cancelled
         self.source = controller.current().coordinator
         if len(controller.members(self.source.group)) != 1:
-            raise RuntimeError(_("Select an ungrouped source."))
+            raise RuntimeError(_("Select a room that is not grouped."))
         if self.source.get_current_transport_info()["current_transport_state"] != "PLAYING":
-            raise RuntimeError(_("Source not playing."))
+            raise RuntimeError(_("Source is not playing."))
         self.description = controller.execute("playing")
         self.targets = []
         for group in controller.groups():
@@ -21,11 +21,11 @@ class Transfer:
             if player.get_current_transport_info()["current_transport_state"] in ("STOPPED", "PAUSED_PLAYBACK", "NO_MEDIA_PRESENT"):
                 self.targets.append(player)
         if not self.targets:
-            raise RuntimeError(_("No free rooms."))
+            raise RuntimeError(_("No available rooms."))
         self.index = 0
 
     def describe(self):
-        return _("Transfer: {source} to {target}. {track}. Space or Enter to confirm.").format(
+        return _("Transfer from {source} to {target}. {track}. Press Space or Enter to confirm.").format(
             source=self.source.player_name, target=self.targets[self.index].player_name,
             track=self.description)
 
@@ -44,7 +44,7 @@ class Transfer:
                 ("STOPPED", "PAUSED_PLAYBACK", "NO_MEDIA_PRESENT")
                 or self.source.group.coordinator.uid != self.source.uid
                 or len(self.controller.members(self.source.group)) != 1):
-            raise RuntimeError(_("Rooms changed. Restart transfer."))
+            raise RuntimeError(_("Rooms have changed. Start the transfer again."))
         if self.cancelled():
             return _("Transfer cancelled.")
         joined = False
@@ -75,14 +75,12 @@ class Transfer:
                         target.unjoin()
                 except Exception:
                     raise RuntimeError(_(
-                        "Transfer failed and cleanup could not be confirmed. "
-                        "Check the rooms in Sonos.")) from error
+                        "Transfer failed. Cleanup could not be confirmed. Check the rooms in the Sonos app.")) from error
             if not detached:
                 try:
                     target.volume = previous_volume
                 except Exception:
                     raise RuntimeError(_(
-                        "Transfer failed. Destination volume could not be restored.")) from error
+                        "Transfer failed. Could not restore the destination volume.")) from error
             raise RuntimeError(_(
-                "Transfer could not be confirmed. "
-                "Check playback and room grouping in Sonos.")) from error
+                "Transfer could not be confirmed. Check playback and grouping in the Sonos app.")) from error

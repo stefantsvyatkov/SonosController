@@ -99,5 +99,5 @@ class PlaybackTests(unittest.TestCase):
             @shuffle.setter
             def shuffle(self, value): pass
         mode = PlaybackSettings(SimpleNamespace(current=lambda: SimpleNamespace(coordinator=Ignored())))
-        with patch("sonosAddon.playbacksettings.time.sleep"), self.assertRaisesRegex(RuntimeError, "not applied"):
+        with patch("sonosAddon.playbacksettings.time.sleep"), self.assertRaisesRegex(RuntimeError, "Could not apply"):
             mode.adjust(1)

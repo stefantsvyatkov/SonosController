@@ -70,7 +70,7 @@ class TransferTests(unittest.TestCase):
     def test_destination_started_playing(self):
         transfer = self.transfer()
         self.target.state = "PLAYING"
-        with self.assertRaisesRegex(RuntimeError, "Rooms changed"):
+        with self.assertRaisesRegex(RuntimeError, "Rooms have changed"):
             transfer.commit()
         self.assertEqual(self.calls, [])
 
@@ -85,7 +85,7 @@ class TransferTests(unittest.TestCase):
 
     def test_no_free_destination(self):
         self.target.state = "PLAYING"
-        with self.assertRaisesRegex(RuntimeError, "No free"):
+        with self.assertRaisesRegex(RuntimeError, "No available"):
             self.transfer()
 
 

@@ -137,7 +137,7 @@ class BreakUpTests(unittest.TestCase):
     def test_others_leave_and_the_playing_room_stays(self):
         Group(self.a, self.b, self.c)
         self.assertEqual(module.break_up(self.controller, lambda: False),
-                         "Group broken up. A keeps playing.")
+                         "Rooms ungrouped. A keeps playing.")
         self.assertEqual(self.calls, [("unjoin", "B"), ("unjoin", "C")])
         self.assertEqual([p.uid for p in self.a.group.members], ["A"])
         self.assertEqual(self.controller.selected, "A")
@@ -145,7 +145,7 @@ class BreakUpTests(unittest.TestCase):
     def test_a_silent_group_just_breaks_up(self):
         Group(self.a, self.b)
         self.a.state = "STOPPED"
-        self.assertEqual(module.break_up(self.controller, lambda: False), "Group broken up.")
+        self.assertEqual(module.break_up(self.controller, lambda: False), "Rooms ungrouped.")
 
     def test_an_ungrouped_room_is_named(self):
         self.assertEqual(module.break_up(self.controller, lambda: False), "A is not grouped.")
@@ -158,7 +158,7 @@ class BreakUpTests(unittest.TestCase):
             self.unjoin(self.b)
             raise TimeoutError()
         self.b.unjoin = unjoin
-        self.assertIn("Group broken up", module.break_up(self.controller, lambda: False))
+        self.assertIn("Rooms ungrouped", module.break_up(self.controller, lambda: False))
         self.assertEqual(self.calls, [("unjoin", "B")])
 
     def test_a_failure_halfway_says_rooms_may_remain(self):

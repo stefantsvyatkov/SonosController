@@ -50,7 +50,7 @@ class Favorites:
         favorite = self.items[self.index]
         reference = favorite.reference
         if not playable_favorite(favorite):
-            raise RuntimeError(_("Favorite has no playable address."))
+            raise RuntimeError(_("Favorite has no playable URL."))
         uri = reference.resources[0].uri
         kind = str(getattr(reference, "item_class", "")).lower()
         player = self.player.group.coordinator
@@ -148,7 +148,7 @@ def parse_alarm(data):
     is_valid_recurrence = vendors.soco_submodule("alarms").is_valid_recurrence
     recurrence = data["recurrence"].strip().upper()
     if not is_valid_recurrence(recurrence):
-        raise ValueError(_("Repeat: DAILY, ONCE, WEEKDAYS, WEEKENDS or ON_0123456 (Sunday is 0)."))
+        raise ValueError(_("Use DAILY, ONCE, WEEKDAYS, WEEKENDS, or ON_0123456 (0 is Sunday)."))
     duration = clock(data["duration"], True)
     if duration is not None and duration == time(0, 0, 0):
         raise ValueError(_("A custom duration must be longer than zero."))
@@ -192,8 +192,8 @@ class AlarmMenu:
     def describe(self):
         alarm = self.current()
         if alarm is None:
-            return _("New alarm.")
-        room = alarm.zone.player_name if alarm.zone else _("Unavailable room")
+            return _("New alarm")
+        room = alarm.zone.player_name if alarm.zone else _("Room unavailable")
         state = _("on") if alarm.enabled else _("off")
         return f"{alarm.start_time:%H:%M}, {room}, {state}, {alarm.recurrence}"
 
@@ -222,7 +222,7 @@ class AlarmMenu:
         try:
             choices = favorites(self.player)
         except Exception as error:
-            raise RuntimeError(_("Cannot load alarm sounds. Try again.")) from error
+            raise RuntimeError(_("Could not load alarm sounds. Try again.")) from error
         return {"alarm": alarm, "rooms": rooms, "roomNames": [p.player_name for p in rooms],
                 "roomIds": [p.uid for p in rooms],
                 "favorites": choices, "favoriteNames": [f.title for f in choices],
@@ -263,7 +263,7 @@ class AlarmMenu:
         # Resolve by ID, not the potentially changed list selection.
         alarm = next((a for a in self.items if a.alarm_id == alarm_id), None)
         if alarm is None:
-            raise RuntimeError(_("Alarm no longer available."))
+            raise RuntimeError(_("Alarm is no longer available."))
         alarm.remove()
         self.reload()
-        return _("Alarm deleted. ") + self.describe()
+        return _("Alarm deleted. {entry}").format(entry=self.describe())

@@ -31,7 +31,7 @@ def source_name(uri):
         (("x-sonos-htastream:",), _("TV")),
         (("x-rincon-stream:",), _("Line-in")),
         (("x-sonos-airplay:",), "AirPlay"),
-        (("x-sonos-vli:",), _("External playback session")),
+        (("x-sonos-vli:",), _("External audio session")),
         (("x-file-cifs:",), _("Music library")),
         (("x-rincon-queue:",), _("Sonos queue")),
         (("x-rincon:",), _("Grouped playback")),
@@ -64,7 +64,7 @@ def describe(track, state):
     # TV and line-in sound has no track to describe, so saying so is noise.
     live_input = (uri or "").lower().startswith(("x-sonos-htastream:", "x-rincon-stream:"))
     if not title and not artist and not stream and not live_input:
-        details.append(_("Track details unavailable"))
+        details.append(_("Track information unavailable"))
     normalized = state.replace("_", " ").lower()
     details.append({"paused playback": "paused", "no media present": "no media"}.get(normalized, normalized))
     return ", ".join(details)

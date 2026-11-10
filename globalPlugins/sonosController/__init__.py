@@ -160,10 +160,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     factory = {"menuFavoritesStart": Favorites, "menuTimerStart": SleepTimer,
                                "menuAlarmsStart": AlarmMenu}[action]
                     menu = factory(controller)
-                    prefix = {"menuFavoritesStart": _("Favorites. "),
-                              "menuTimerStart": _("Sleep timer. "),
-                              "menuAlarmsStart": _("Alarms. ")}[action]
-                    message = prefix + menu.describe()
+                    opening = {"menuFavoritesStart": _("Favorites. {entry}"),
+                               "menuTimerStart": _("Sleep timer. {entry}"),
+                               "menuAlarmsStart": _("Alarms. {entry}")}[action]
+                    message = opening.format(entry=menu.describe())
                 elif action.startswith("menu"):
                     if menu is None:
                         continue
@@ -206,7 +206,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         elif action == "menuDelete":
                             alarm = menu.current()
                             if alarm is None:
-                                message = _("Select an alarm.")
+                                message = _("Select an alarm")
                             else:
                                 wx.CallAfter(self._confirmDelete, generation,
                                              alarm.alarm_id, menu.describe())
@@ -238,9 +238,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 elif action in ("settingsStart", "playbackSettingsStart"):
                     settings = (PlaybackSettings(controller) if action == "playbackSettingsStart"
                                 else Settings(controller))
-                    message = _("Settings. ") + settings.describe()
-                    if settings.unavailable:
-                        message += _(". Some settings unavailable.")
+                    opening = (_("Settings. {setting}. Some settings are unavailable.")
+                               if settings.unavailable else _("Settings. {setting}"))
+                    message = opening.format(setting=settings.describe())
                 elif action.startswith("settings"):
                     if settings is None:
                         continue
@@ -253,8 +253,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         message = settings.adjust(1 if action == "settingsRight" else -1)
                 elif action == "groupStart":
                     grouping = Grouping(controller, self._roomCancel(cancelled))
-                    message = (_("Group. ") + grouping.describe()
-                               + _(". Space to select, Enter to apply."))
+                    message = _("Group. {rooms}. Press Space to select, Enter to apply.").format(
+                        rooms=grouping.describe())
                 elif action.startswith("group"):
                     if grouping is None or grouping.cancelled():
                         continue
@@ -334,7 +334,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         if not self.closed and self.active and generation == self.generation:
             import api
             result = api.copyToClip(text)
-            ui.message(_("Copied.") if result is not False else _("Copy failed."))
+            ui.message(_("Copied") if result is not False else _("Copy failed."))
 
     def _announce(self, generation, message):
         if message and not self.closed and self.active and generation == self.generation:
@@ -360,7 +360,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self.tasks.put_nowait((self.generation, action))
             return True
         except queue.Full:
-            ui.message(_("Sonos is busy"))
+            ui.message(_("Sonos is busy."))
             return False
 
     def _drain(self):
@@ -381,7 +381,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     @script(
         # Translators: description of the command that turns the Sonos layer on and off.
-        description=_("Toggle the Sonos command layer"),
+        description=_("Turn the Sonos command layer on or off"),
         gesture=TOGGLE,
     )
     def script_toggle(self, gesture):
@@ -391,7 +391,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.active = True
         self.generation += 1
         self.bindGestures(KEYS)
-        ui.message(_("Connecting."))
+        ui.message(_("Connecting..."))
         self._submit("open")
 
     def script_back(self, gesture):
@@ -402,7 +402,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.mode = None
         self.generation += 1
         self._drain()
-        ui.message(_("Sonos."))
+        ui.message(_("Sonos"))
 
     def script_exit(self, gesture):
         wasRoomMode = self.mode in ROOM_MODES
@@ -413,7 +413,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self._drain()
         self._unbind()
         wx.CallAfter(ui.message,
-                     _("Cancelling. Sonos off.") if wasRoomMode else _("Sonos off."))
+                     _("Cancelling... Sonos off.") if wasRoomMode else _("Sonos off."))
 
     # -- main layer commands ---------------------------------------------
 
@@ -598,8 +598,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
         def ask(parent):
             answer.append(wx.MessageBox(
-                _("{problem}\n\nPlaying it needs FFmpeg, a free "
-                  "program of about {size} MB, downloaded once. Download it now?").format(
+                _("{problem}\n\nPlayback requires FFmpeg, a free program of about {size} MB. Download it now?").format(
                       problem=refusal.problem, size=ffmpeg.size_mb()),
                 _("Sonos Controller"), wx.YES_NO | wx.ICON_QUESTION, parent))
 
@@ -653,7 +652,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     self._enqueue(("urlPlay", payload))
                 return
             if not isinstance(error, ffmpeg.Cancelled):
-                self._announce(generation, _("Could not install FFmpeg. {error}")
+                self._announce(generation, _("Could not install FFmpeg: {error}")
                                .format(error=error))
 
         def work():

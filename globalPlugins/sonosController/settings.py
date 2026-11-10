@@ -27,7 +27,7 @@ OPTIONS = (
     Option("volume", _("Room volume"), 0, 100),
     Option("mute", _("Room mute"), kind="switch"),
     Option("balance", _("Balance"), -100, 100, kind="balance"),
-    Option("trueplay", _("Trueplay calibration enabled"), kind="switch"),
+    Option("trueplay", _("Trueplay calibration"), kind="switch"),
     Option("night_mode", _("Night mode"), gate="soundbar", kind="switch"),
     Option("dialog_mode", _("Speech enhancement"), gate="legacySoundbar", kind="switch"),
     Option("speech_enhance_enabled", _("Speech enhancement"), gate="ultra", kind="switch"),
@@ -39,7 +39,7 @@ OPTIONS = (
     Option("surround_volume_music", _("Surround music level"), -15, 15, gate="surround"),
     Option("sub_enabled", _("Subwoofer"), gate="sub", kind="switch"),
     Option("sub_gain", _("Subwoofer level"), -15, 15, gate="sub"),
-    Option("sub_crossover", _("Subwoofer crossover Hz"), 50, 110, gate="amp"),
+    Option("sub_crossover", _("Subwoofer crossover (Hz)"), 50, 110, gate="amp"),
     Option("fixed_volume", _("Fixed line output"), gate="fixed", kind="switch"),
 )
 
@@ -167,7 +167,7 @@ class Settings:
         room, option = self.items[self.index]
         value = self.value()
         if value is None:
-            return _("{room}, {label}, no longer available. Reopen settings.").format(
+            return _("{room}, {label} is no longer available. Reopen settings.").format(
                 room=room.player_name, label=option.label)
         if option.kind == "switch":
             text = _("on") if value else _("off")

@@ -38,7 +38,7 @@ class EmulatorTest(unittest.TestCase):
 class LayerBasics(EmulatorTest):
     def test_toggle_announces_the_selected_room(self):
         session = self.layer()
-        self.assertEqual(session.speech[0], "Connecting.")
+        self.assertEqual(session.speech[0], "Connecting...")
         self.assertIn("Sonos,", session.speech[1])
         self.assertEqual(session.mode, "layer")
 
@@ -61,7 +61,7 @@ class LayerBasics(EmulatorTest):
         session.press("kb:p")
         session.press("kb:p")
         self.assertEqual(session.clipboard.get("value"), "Blue Monday — New Order")
-        self.assertIn("Copied.", session.speech)
+        self.assertIn("Copied", session.speech)
 
     def test_unrelated_key_leaves_the_layer_and_reaches_windows(self):
         session = self.layer()
@@ -317,7 +317,7 @@ class FixedDefects(EmulatorTest):
 
     def test_duration_dropdowns_stop_at_both_ends(self):
         """A duration is a span, not a clock: its fields stop instead of wrapping."""
-        for name, last in (("Duration hour", "23"), ("Duration minute", "59")):
+        for name, last in (("Duration hours", "23"), ("Duration minutes", "59")):
             with self.subTest(field=name):
                 session = self.layer()
                 session.press("kb:a")
@@ -522,7 +522,7 @@ class OptionalFFmpeg(EmulatorTest):
 
     def refused(self, session):
         relayhooks = sys.modules[session.package.__name__ + ".relayhooks"]
-        problem = RuntimeError("Audio format rejected by the speaker.")
+        problem = RuntimeError("The speaker rejected the audio format.")
         relay = self.Relay(relayhooks.NeedsFFmpeg(problem))
         session.plugin.relay = relay
         return relay
@@ -546,7 +546,7 @@ class OptionalFFmpeg(EmulatorTest):
             heard = self.play(session)
         self.assertTrue(session.responder.message_boxes, "nothing was offered")
         offered = session.responder.message_boxes[-1][1]
-        self.assertIn("rejected by the speaker", offered)
+        self.assertIn("rejected the audio format", offered)
         self.assertIn(str(ffmpeg.size_mb()), offered, "the size belongs in the question")
         self.assertIn("FFmpeg installed.", heard)
         self.assertTrue(relay.installed, "the relay was not told to look again")
@@ -559,7 +559,7 @@ class OptionalFFmpeg(EmulatorTest):
         session.responder.message_answer = session.wx.NO
         session.speech.drain()
         heard = self.play(session)
-        self.assertEqual(heard[-1], "Audio format rejected by the speaker.")
+        self.assertEqual(heard[-1], "The speaker rejected the audio format.")
 
     def test_a_failed_download_is_reported_and_nothing_is_replayed(self):
         session = self.layer()
@@ -574,7 +574,7 @@ class OptionalFFmpeg(EmulatorTest):
 
         with patch.object(ffmpeg, "install", explode):
             heard = self.play(session)
-        self.assertIn("Could not install FFmpeg. the network went away", heard)
+        self.assertIn("Could not install FFmpeg: the network went away", heard)
         self.assertNotIn("Playing Radio", heard)
 
     def test_cancelling_the_download_says_nothing_further(self):

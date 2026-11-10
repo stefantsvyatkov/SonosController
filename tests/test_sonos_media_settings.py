@@ -17,7 +17,7 @@ class MediaTests(unittest.TestCase):
                             ("x-rincon-mp3radio:test", "Internet radio"),
                             ("x-sonos-airplay:test", "AirPlay")):
             self.assertEqual(source_name(uri), source)
-        self.assertIn("Track details unavailable", describe({"uri": "x-sonos-vli:test"}, "PLAYING"))
+        self.assertIn("Track information unavailable", describe({"uri": "x-sonos-vli:test"}, "PLAYING"))
 
     def test_radio_metadata_and_invalid_xml(self):
         xml = '<item><title>Station</title><streamContent>Artist - Song</streamContent></item>'
@@ -38,7 +38,7 @@ class MediaTests(unittest.TestCase):
         c.execute("seekForward")
         self.assertEqual(positions, ["0:00:00", "0:00:15"])
         p.actions = "Play"
-        self.assertIn("not available", c.execute("seekForward"))
+        self.assertIn("unavailable", c.execute("seekForward"))
         self.assertEqual(len(positions), 2)
 
     def test_live_stream_never_seeks(self):
@@ -47,7 +47,7 @@ class MediaTests(unittest.TestCase):
         p.actions = "Seek"
         p.get_current_track_info = lambda: {"position": "0:03:00", "duration": "0:00:00"}
         p.seek = lambda **kw: self.fail("Must not seek a stream without duration")
-        self.assertIn("not available", backend.Controller(lambda **kw: [p]).execute("seekForward"))
+        self.assertIn("unavailable", backend.Controller(lambda **kw: [p]).execute("seekForward"))
 
     def test_spotify_dlna_time_seek(self):
         p = Player("a", "Room")

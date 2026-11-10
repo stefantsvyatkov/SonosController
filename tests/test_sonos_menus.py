@@ -89,7 +89,7 @@ class MenuTests(unittest.TestCase):
         self.assertEqual(self.controller.execute("remaining"), "Remaining 0:02:00")
         self.assertEqual(self.controller.execute("copyTrack"), {"copy": "Song — Artist"})
         self.player.get_current_track_info = lambda: {"title": "TV", "uri": "x-sonos-htastream:tv"}
-        self.assertIn("not available", self.controller.execute("copyTrack"))
+        self.assertIn("cannot be copied", self.controller.execute("copyTrack"))
         self.assertIn("unavailable", self.controller.execute("remaining"))
 
 

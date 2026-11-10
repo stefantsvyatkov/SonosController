@@ -15,10 +15,10 @@ from .urls import (
 
 #: Speaker responses that mean "wrong format", which local conversion can fix.
 FORMAT_REFUSALS = (
-    _("Audio format rejected by the speaker."),
+    _("The speaker rejected the audio format."),
     _("The speaker rejected the stream."),
-    _("The speaker did not start the stream."),
-    _("Opus is not supported by direct Sonos URL playback."),
+    _("The speaker did not start playing the stream."),
+    _("Direct Sonos URL playback does not support Opus."),
 )
 
 
@@ -39,7 +39,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
             relay.stop()
         direct_error = None
         if source.mime == "audio/opus":
-            direct_error = RuntimeError(_("Opus is not supported by direct Sonos URL playback."))
+            direct_error = RuntimeError(_("Direct Sonos URL playback does not support Opus."))
         else:
             try:
                 if _direct(player, source, cancelled, progress):
@@ -79,8 +79,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
                     relay.stop(session)
                     if not requested:
                         raise RuntimeError(_(
-                            "Local conversion was not reached. "
-                            "Check NVDA firewall access.")) from error
+                            "Local conversion could not be reached. Check firewall access for NVDA.")) from error
         raise RuntimeError(_("Local conversion could not start.")) from last_error
     except Cancelled:
         return ""

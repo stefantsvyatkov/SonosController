@@ -195,7 +195,7 @@ class Fallback(unittest.TestCase):
 
     def test_without_ffmpeg_a_refused_format_asks_for_the_download(self):
         relay = self.relay()
-        refusal = RuntimeError("Audio format rejected by the speaker.")
+        refusal = RuntimeError("The speaker rejected the audio format.")
         with patch.object(relayhooks, "_play_url", side_effect=refusal):
             with self.assertRaises(relayhooks.NeedsFFmpeg) as caught:
                 relay.play_url("player", "http://x/a.ogg", bool, print)

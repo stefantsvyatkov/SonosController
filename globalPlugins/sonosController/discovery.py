@@ -114,7 +114,7 @@ def discover_rooms(soco, timeout=4):
     rooms = _resolve(_player(soco, ip, port) for ip, port in available)
     if addresses and not rooms:
         raise RuntimeError(
-            _("Sonos speakers were found, but local control on port 1400 is unavailable."))
+            _("Sonos speakers found, but local control on port 1400 is unavailable."))
     return rooms
 
 

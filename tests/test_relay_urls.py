@@ -56,7 +56,7 @@ class RelayUrlTests(unittest.TestCase):
                 return sessions[-1]
 
         with patch.object(relay_urls, "resolve_audio", return_value=source), \
-                patch.object(relay_urls, "_direct", side_effect=RuntimeError("The speaker did not start the stream.")), \
+                patch.object(relay_urls, "_direct", side_effect=RuntimeError("The speaker did not start playing the stream.")), \
                 patch.object(relay_urls, "_confirmed_start", side_effect=[RuntimeError("Local audio fallback failed."), True]):
             self.assertEqual(relay_urls.play_url(Player(), source.url, relay=Relay()), "Playing Radio")
         self.assertEqual(
@@ -85,8 +85,8 @@ class RelayUrlTests(unittest.TestCase):
                 )
 
         with patch.object(relay_urls, "resolve_audio", return_value=source), \
-                patch.object(relay_urls, "_direct", side_effect=RuntimeError("The speaker did not start the stream.")), \
-                patch.object(relay_urls, "_confirmed_start", side_effect=RuntimeError("The speaker did not start the stream.")):
+                patch.object(relay_urls, "_direct", side_effect=RuntimeError("The speaker did not start playing the stream.")), \
+                patch.object(relay_urls, "_confirmed_start", side_effect=RuntimeError("The speaker did not start playing the stream.")):
             with self.assertRaisesRegex(RuntimeError, "firewall"):
                 relay_urls.play_url(Player(), source.url, relay=Relay())
         self.assertEqual(modes, ["remux_mp3"])

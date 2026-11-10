@@ -76,7 +76,7 @@ class LayerTests(unittest.TestCase):
         for _ in range(20):
             self.plugin.script_up(None)
         self.assertEqual(self.plugin.tasks.qsize(), 8)
-        self.assertIn("Sonos is busy", self.messages)
+        self.assertIn("Sonos is busy.", self.messages)
         self.plugin.terminate()
         self.assertTrue(self.plugin.stop.is_set())
         self.assertFalse(self.plugin.bindings)
@@ -304,7 +304,7 @@ class LayerTests(unittest.TestCase):
         self.plugin.script_toggle(None)
         self.plugin.script_exit(None)
         self.plugin.script_toggle(None)
-        self.assertEqual(self.messages.count('Connecting.'), 2)
+        self.assertEqual(self.messages.count('Connecting...'), 2)
 
     def test_old_configuration_without_address_cache_starts(self):
         # Existing users upgrade without a knownAddresses key.

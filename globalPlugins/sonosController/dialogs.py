@@ -130,9 +130,9 @@ class AlarmDialog(wx.Dialog):
         duration = grid.add("durationMode", _("Duration"),
                             lambda: wx.Choice(panel, choices=[_("Unlimited"), _("Custom")]))
         duration.SetSelection(1 if alarm and alarm.duration else 0)
-        durationHours = grid.add("durationHour", _("Duration hour"),
+        durationHours = grid.add("durationHour", _("Duration hours"),
                                  lambda: numbers(panel, 24))
-        durationMinutes = grid.add("durationMinute", _("Duration minute"),
+        durationMinutes = grid.add("durationMinute", _("Duration minutes"),
                                    lambda: numbers(panel, 60))
         durationHours.SetSelection(alarm.duration.hour if alarm and alarm.duration else 1)
         durationMinutes.SetSelection(alarm.duration.minute if alarm and alarm.duration else 0)

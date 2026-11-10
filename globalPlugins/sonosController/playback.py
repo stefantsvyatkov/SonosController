@@ -38,7 +38,7 @@ def select_and_play(player, select, matches, cancelled=lambda: False):
             raise
         # An expired response is ambiguous: only continue if this exact source was selected.
         if cancelled() or not matches():
-            raise RuntimeError(_("Source selection could not be confirmed.")) from error
+            raise RuntimeError(_("Could not confirm the selected source.")) from error
     if cancelled():
         return False
     pending_error = None
