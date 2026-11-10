@@ -8,9 +8,11 @@ does, and ``SoCoDrift`` checks that the names they answer to are SoCo's own, so
 a SoCo update that renames one fails here rather than on a user's soundbar.
 """
 
+import importlib
 import sys
 import unittest
 from pathlib import Path
+from xml.sax.saxutils import escape, quoteattr
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -22,6 +24,20 @@ from support import load
 
 backend = load("backend")
 settings_module = load("settings")
+
+#: An AVTransport event of a speaker playing an album from a music service.
+ALBUM = ('<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+         'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
+         'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+         'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+         '<container id="album1" parentID="-1" restricted="true"><dc:title>Blue Lines</dc:title>'
+         '<upnp:class>object.container.album.musicAlbum</upnp:class></container></DIDL-Lite>')
+EVENT = ('<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0"><e:property><LastChange>' + escape(
+    '<Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/" xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/">'
+    '<InstanceID val="0"><TransportState val="PLAYING"/>'
+    '<r:EnqueuedTransportURI val="x-rincon-cpcontainer:album1?sid=12"/>'
+    f'<r:EnqueuedTransportURIMetaData val={quoteattr(ALBUM)}/></InstanceID></Event>')
+    + '</LastChange></e:property></e:propertyset>').encode()
 
 ROOMS = sorted(p.player_name for p in product_household().visible() if p.player_name != "Garage")
 
@@ -235,10 +251,28 @@ class SoCoDrift(unittest.TestCase):
         for name in ("set_relative_volume", "volume", "mute"):
             self.assertTrue(hasattr(self.groups.ZoneGroup, name), name)
         favorites = sys.modules[self.core.__name__.rsplit(".", 1)[0] + ".favorites"].Favorites
-        for name in ("rename", "remove"):
+        for name in ("rename", "remove", "add"):
             self.assertTrue(hasattr(favorites, name) and hasattr(simulator.Favorites, name), name)
         group = self.groups.ZoneGroup("RINCON_1", coordinator=None, members=set())
         self.assertTrue(hasattr(group, "coordinator") and hasattr(group, "members"))
+
+    def test_events_and_favorite_errors_are_socos(self):
+        package = self.core.__name__.rsplit(".", 1)[0]
+        soco = sys.modules[package]
+        for name in ("FavoritesFullError", "FavoritesAlreadyAddedError"):
+            self.assertTrue(hasattr(soco.exceptions, name) and hasattr(simulator, name), name)
+        self.assertTrue(hasattr(soco.data_structures_entry, "from_didl_string"))
+        self.assertTrue(hasattr(soco.data_structures, "DidlResource"))
+        events_base = importlib.import_module(package + ".events_base")
+        service = importlib.import_module(package + ".services").Service
+        subscription = importlib.import_module(package + ".events").Subscription
+        self.assertTrue(hasattr(service, "subscribe") and hasattr(simulator.Service, "subscribe"))
+        self.assertIn("strict", subscription.unsubscribe.__code__.co_varnames)
+        self.assertIn("events", events_base.SubscriptionBase.__init__.__code__.co_names)
+        # SoCo names the LastChange variables by snake-casing the speaker's own names.
+        variables = events_base.parse_event_xml(EVENT)
+        self.assertEqual(variables["enqueued_transport_uri"], "x-rincon-cpcontainer:album1?sid=12")
+        self.assertEqual(variables["enqueued_transport_uri_meta_data"].title, "Blue Lines")
 
     def test_multi_port_players(self):
         player = self.core.SoCo("192.0.2.10", 1410)

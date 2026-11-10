@@ -18,9 +18,9 @@ from .discovery import RoomDiscovery
 from .grouping import Grouping, break_up
 from .i18n import _
 from .library import Library, files_entry, sonos_entry, url_entry
-from .localfiles import LocalFiles
-from .menus import (AlarmMenu, EntryList, Favorites, History, SleepTimer, favorite_uri, find_favorite,
-                    play_favorite, title_of)
+from .localfiles import LocalFiles, served_here
+from .menus import (AlarmMenu, EntryList, Favorites, History, SleepTimer, enqueued, favorite_uri,
+                    find_favorite, keep, play_favorite, title_of)
 from .modes import KEYS, MENU_MODES, MODE_ONLY, MODES, ROOM_MODES, SETTINGS_MODES, TOGGLE
 from .playbacksettings import PlaybackSettings
 from .relayhooks import NeedsFFmpeg, Relay
@@ -307,11 +307,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 elif action == "breakUp":
                     message = break_up(controller, cancelled)
                 elif action == "addFavorite":
-                    player = controller.current().coordinator
-                    entry = self.library.playing(player.get_current_media_info().get("uri", ""))
-                    message = (self._addFavorite(entry) if entry else
-                               _("What is playing here was not started from the add-on. "
-                                 "Press H to add it from the history."))
+                    message = self._addPlaying(controller.current().coordinator)
                 elif action == "transferStart":
                     transfer = Transfer(controller, self._roomCancel(cancelled))
                     message = transfer.describe()
@@ -404,6 +400,26 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self.library.remember(entry, media)
         except OSError:
             log.warning("Sonos: the history could not be saved", exc_info=True)
+
+    def _addPlaying(self, player):
+        """Shift+F in the layer: what the add-on started goes to Local favorites, the rest to Sonos favorites.
+
+        What the add-on serves from this computer, a file or a relayed stream,
+        plays only while NVDA runs, so it can never be a Sonos favorite.
+        """
+        media = player.avTransport.GetMediaInfo([("InstanceID", 0)])
+        uri, metadata = media.get("CurrentURI", ""), media.get("CurrentURIMetaData", "")
+        queued = uri.startswith("x-rincon-queue:")
+        ours = served_here(player, player.get_current_track_info().get("uri", "") if queued else uri)
+        # Every queue has the same address, so the history knows it only while the add-on's files play.
+        entry = self.library.playing(uri) if ours or not queued else None
+        if entry and entry["kind"] != "sonos":
+            return self._addFavorite(entry)
+        if ours:
+            raise RuntimeError(_("This source cannot be added to favorites."))
+        if queued:
+            uri, metadata = enqueued(player)
+        return keep(player, uri, metadata)
 
     def _addFavorite(self, entry):
         if entry["kind"] == "sonos":

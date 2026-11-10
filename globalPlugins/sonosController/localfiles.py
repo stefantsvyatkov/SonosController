@@ -22,6 +22,21 @@ MIME = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".wav": "audio/wav",
         ".wma": "audio/x-ms-wma", ".aif": "audio/aiff", ".aiff": "audio/aiff"}
 
 
+def local_address(player):
+    """This computer's address on the network that reaches ``player``."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
+        route.connect((player.ip_address, 1400))
+        return route.getsockname()[0]
+
+
+def served_here(player, uri):
+    """Whether ``uri`` is a file or a relayed stream this computer serves to ``player``."""
+    try:
+        return urlsplit(uri).hostname == local_address(player)
+    except (OSError, ValueError):
+        return False
+
+
 def audio_files(path, recursive=False):
     path = os.path.realpath(path)
     if os.path.isfile(path):
@@ -180,9 +195,7 @@ class LocalFiles:
             server.close()
 
     def server_for(self, player):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
-            route.connect((player.ip_address, 1400))
-            address = route.getsockname()[0]
+        address = local_address(player)
         with self.lock:
             if self.closed:
                 raise RuntimeError(_("Local playback stopped."))

@@ -9,9 +9,14 @@ from .util import transient
 __all__ = ["transient", "source_identity", "selected_uri", "select_and_play"]
 
 
+#: Music service addresses: a service item, the account (sn) and playback flags.
+SERVICE_SCHEMES = ("x-sonosapi-stream", "x-sonosapi-radio", "x-sonosapi-hls", "x-sonosapi-hls-static",
+                   "x-rincon-cpcontainer", "x-sonos-http", "x-sonos-spotify")
+
+
 def source_identity(uri):
     parts = urlsplit(uri)
-    if parts.scheme in ("x-sonosapi-stream", "x-sonosapi-radio"):
+    if parts.scheme in SERVICE_SCHEMES:
         # Sonos rewrites playback flags when selecting a favorite; the service,
         # account and content identifier must still match.
         query = tuple(sorted((key, value) for key, value in parse_qsl(parts.query) if key != "flags"))

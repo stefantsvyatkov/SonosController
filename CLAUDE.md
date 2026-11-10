@@ -59,11 +59,13 @@ These came from use with a screen reader. Do not change them without asking.
   playing, the others stop and stand alone.
 - F has two sections, Sonos favorites and Local favorites, switched with Left and Right; each keeps its place.
   Shift+F adds what the add-on is playing (a U address, a file or a folder) to Local favorites, and in the
-  history the selected entry; it never adds to Sonos favorites. Delete asks before removing, in both sections of
-  F and in the history alike (No is the default); F2 renames. A Sonos favorite renamed or removed here changes for
-  the whole home, through SoCo's `favorites` (UpdateObject, DestroyObject), and the list is read again after.
-  H lists what the add-on played, newest first, the last 50; a replay moves to the top and keeps a name given
-  with F2 (the owner's polls, 10 November 2026; Sonos favorites editable by the poll of that evening).
+  history the selected entry. What the Sonos app started goes to Sonos favorites, without asking: the station, or
+  the album, playlist or song the queue was started with (the owner's poll, 11 November 2026). Delete asks before
+  removing, in both sections of F and in the history alike (No is the default); F2 renames. A Sonos favorite
+  added, renamed or removed here changes for the whole home, through SoCo's `favorites` (CreateObject,
+  UpdateObject, DestroyObject), and the list is read again after. H lists what the add-on played, newest first,
+  the last 50; a replay moves to the top and keeps a name given with F2 (the owner's polls, 10 November 2026;
+  Sonos favorites editable by the poll of that evening).
 - Speaker settings name the speaker once, when the selection reaches it, and never twice ("Move 2, Sonos Move 2").
 - Long messages and the voice announcements stay.
 
@@ -170,7 +172,16 @@ household when replayed).
 
 Every play the add-on starts (`urlPlay`, `localPlay`, Enter in F or H) goes through `_playEntry` or `_record`, which
 puts the entry at the top of the history with `media`, the URI the speaker reports once playing. Shift+F in the
-layer looks that URI up, so it adds only what the add-on started, even after NVDA restarts. URL playback returns a
+layer (`_addPlaying`) looks that URI up, so Local favorites get only what the add-on started, even after NVDA
+restarts. Every queue has the same URI, so a queue counts as the add-on's only while its track comes from this
+computer (`localfiles.served_here`); a file or relayed stream served here never becomes a Sonos favorite, since it
+plays only while NVDA runs. Anything else goes to `menus.keep`, which adds it with SoCo's `Favorites.add` unless a
+favorite with the same `source_identity` exists (the speaker reports other flags than the favorite keeps; it
+refuses a true duplicate itself with 803). A station's URI and metadata come from GetMediaInfo. A queue's album
+or playlist is known only as EnqueuedTransportURI, which no action returns: `menus.enqueued` subscribes to
+AVTransport, takes the first event (the whole state, within a second on the owner's speakers) and unsubscribes,
+and SoCo stops its event listener with the last subscription. Its NOTIFY needs NVDA allowed through the firewall,
+as local files do; without it the add-on says so after `EVENT_WAIT`. URL playback returns a
 `util.Played`, a str that also carries the stream's name (`name`, since `title` is a str method), taken from
 `icy-name` or the playlist; that is the name a history entry gets.
 
@@ -222,7 +233,10 @@ model name whether it is a soundbar or an Ultra soundbar, and from its bonded sp
 a subwoofer: `house.home_theater(...)`, `house.stereo_pair(...)` and `house.multi_zone(...)` (an Amp Multi: one
 address, a port per room) build them, with the bonded speakers invisible. Reading a setting a model lacks raises
 `AttributeError`, or the UPnP error the model gives (a Port asked about touch controls). `player.online = False`
-makes one speaker time out and only that one. `product_household()` has one of every kind, and
+makes one speaker time out and only that one. A speaker keeps what its queue or stream was filled from, as a real
+one does, and reports it in the first event of `avTransport.subscribe()`; `player.events_blocked = True` keeps the
+events out, as a firewall would. `house.favorites_limit` makes adding a favorite refuse, and `sonos.didl(title)` is
+the metadata another controller sends with a stream. `product_household()` has one of every kind, and
 `tests/test_sonos_products.py` walks it; its `SoCoDrift` tests fail when a name the add-on or the simulator uses is
 not the vendored SoCo's, which is what keeps a SoCo update honest.
 
@@ -282,8 +296,8 @@ Scenarios:
 - `groups` - G groups two rooms, Shift+G breaks them up and then says the room is not grouped, T moves the music.
 - `products` - with `-Household products`: all 22 rooms answer, the Arc Ultra on TV and its speech enhancement, a
   Move 2's battery, a Port at fixed output.
-- `library` - F's two sections, a Sonos favorite renamed and removed, another played and found in H, F2 renaming
-  it in NVDA's own reading of the dialog, and Delete asking first (Enter keeps, Y removes).
+- `library` - F's two sections, a Sonos favorite renamed and removed, another played, Shift+F knowing it is one,
+  found in H, F2 renaming it in NVDA's own reading of the dialog, and Delete asking first (Enter keeps, Y removes).
 
 Every scenario also fails if NVDA logged an error or left a crash dump; the agent keeps the log written while NVDA
 closes as `nvda-closing.log`, since a restarted NVDA writes its log anew.

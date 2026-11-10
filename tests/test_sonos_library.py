@@ -1,9 +1,10 @@
 """Local favorites and the history (F, Shift+F, H, Delete and F2), through the emulator.
 
-The owner's poll of 10 November 2026 set the behaviour: F has two sections,
-Sonos favorites and Local favorites, switched with Left and Right; Shift+F adds
-what the add-on is playing, and in the history the selected entry; Delete asks
-before removing anything; F2 renames; Sonos favorites are not changed from here.
+The owner's polls of 10 and 11 November 2026 set the behaviour: F has two
+sections, Sonos favorites and Local favorites, switched with Left and Right;
+Shift+F adds what the add-on is playing to Local favorites and what the Sonos app
+started to Sonos favorites, and in the history the selected entry; Delete asks
+before removing anything; F2 renames, in both sections.
 """
 
 import json
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness import Session
+from harness.sonos import DidlItem, DidlMusicTrack, DidlResource, didl
 from support import load
 
 library = load("library")
@@ -78,11 +80,6 @@ class Adding(LibraryTest):
         self.assertEqual(self.press("kb:shift+f"), "Example Radio is already in Local favorites.")
         self.assertEqual([e["url"] for e in self.stored()["favorites"]], [STATION])
 
-    def test_shift_f_refuses_what_the_add_on_did_not_start(self):
-        heard = self.press("kb:shift+f")
-        self.assertTrue(heard.startswith("What is playing here was not started from the add-on."), heard)
-        self.assertFalse((self.session.config_dir / library.FILE_NAME).exists(), "nothing should be saved")
-
     def test_shift_f_on_a_sonos_favorite_says_it_already_is_one(self):
         self.press("kb:f")
         self.press("kb:enter")
@@ -91,12 +88,17 @@ class Adding(LibraryTest):
     def test_a_folder_played_with_control_f_can_be_added(self):
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
-        played = []
+        localfiles = sys.modules[self.session.package.__name__ + ".localfiles"]
 
         def play(player, selection, cancelled=lambda: False):
-            played.append(selection)
-            player.group.coordinator.play_uri("x-rincon-queue:living#0", meta="", start=True)
-            return "Playing 3 files."
+            # The speaker plays the add-on's files from this computer, through its queue.
+            player = player.group.coordinator
+            address = localfiles.local_address(player)
+            track = DidlMusicTrack("one", resources=[DidlResource(f"http://{address}:8000/a/one.mp3")])
+            player.clear_queue()
+            player.add_multiple_to_queue([track])
+            player.play_from_queue(0)
+            return "Playing one"
 
         self.session.plugin.localFiles.play = play
         self.session.plugin._enqueue(("localPlay", (self.session.household.players[0],
@@ -106,6 +108,82 @@ class Adding(LibraryTest):
         heard = self.press("kb:shift+f")
         self.assertEqual(heard, f"Added {Path(folder).name} to Local favorites.")
         self.assertEqual(self.stored()["favorites"][0]["recursive"], True)
+
+
+class AddingFromSonos(LibraryTest):
+    """Shift+F on what the Sonos app started: Sonos favorites (the owner's poll, 11 November 2026)."""
+
+    def setUp(self):
+        super().setUp()
+        self.living = self.session.household.find("Living Room")
+
+    def sonos_titles(self):
+        return [f.title for f in self.session.household.favorites]
+
+    def test_a_station_goes_to_sonos_favorites(self):
+        self.living.play_uri("x-sonosapi-stream:s1234?sid=254&flags=8232&sn=1", meta=didl("Radio Paradise"))
+        self.assertEqual(self.press("kb:shift+f"), "Added Radio Paradise to Sonos favorites.")
+        self.assertEqual(self.press("kb:shift+f"), "Radio Paradise is already a Sonos favorite.")
+        self.assertEqual(self.sonos_titles(), ["Test Radio", "Jazz Playlist", "Radio Paradise"])
+        self.assertFalse((self.session.config_dir / library.FILE_NAME).exists(), "nothing goes to Local favorites")
+        self.assertEqual(self.press("kb:f"), "Sonos favorites. Test Radio, 1 of 3")
+
+    def test_a_favorite_the_sonos_app_started_is_one_already(self):
+        # The speaker reports other flags than the favorite keeps.
+        self.living.play_uri("x-sonosapi-stream:test?sid=254&flags=8232", meta=didl("Test Radio"))
+        self.session.household.reset_calls()
+        self.assertEqual(self.press("kb:shift+f"), "Test Radio is already a Sonos favorite.")
+        self.assertNotIn("CreateObject", self.session.household.calls)
+
+    def test_an_album_from_the_queue_is_added_whole(self):
+        album = DidlItem("Blue Lines", "object.container.album.musicAlbum", "album1",
+                         [DidlResource("x-rincon-cpcontainer:album1?sid=12&flags=8300&sn=1")])
+        self.living.clear_queue()
+        self.living.add_to_queue(album)
+        self.living.play_from_queue(0)
+        self.assertEqual(self.press("kb:shift+f"), "Added Blue Lines to Sonos favorites.")
+        added = self.session.household.favorites[-1]
+        self.assertEqual(added.reference.resources[0].uri, "x-rincon-cpcontainer:album1?sid=12&flags=8300&sn=1")
+        self.assertEqual(added.reference.item_class, "object.container.album.musicAlbum")
+        self.assertTrue(all(s.unsubscribed for s in self.session.household.subscriptions))
+
+    def test_a_queue_of_single_songs_has_no_album_to_add(self):
+        self.living.clear_queue()
+        self.living.add_multiple_to_queue([DidlMusicTrack("one", resources=[DidlResource("x-file-cifs://nas/one.mp3")])])
+        self.living.play_from_queue(0)
+        self.assertEqual(self.press("kb:shift+f"), "Could not find out which album or playlist is playing.")
+        self.assertEqual(len(self.session.household.favorites), 2)
+
+    def test_events_kept_out_by_a_firewall_are_named(self):
+        menus = sys.modules[self.session.package.__name__ + ".menus"]
+        self.addCleanup(setattr, menus, "EVENT_WAIT", menus.EVENT_WAIT)
+        menus.EVENT_WAIT = 0.1
+        self.living.events_blocked = True
+        self.living.add_to_queue(DidlItem("Blue Lines", "object.container.album.musicAlbum", "album1",
+                                          [DidlResource("x-rincon-cpcontainer:album1?sid=12")]))
+        self.living.play_from_queue(0)
+        self.assertEqual(self.press("kb:shift+f"),
+                         "The speaker did not say what is playing. Check firewall access for NVDA.")
+        self.assertTrue(all(s.unsubscribed for s in self.session.household.subscriptions))
+
+    def test_tv_and_an_empty_room_cannot_be_added(self):
+        self.living.play_uri(f"x-sonos-htastream:{self.living.uid}:spdif")
+        self.assertEqual(self.press("kb:shift+f"), "This source cannot be added to favorites.")
+        self.session.select_room("Kitchen")
+        self.assertEqual(self.press("kb:shift+f"), "Nothing is selected in this room.")
+        self.assertEqual(len(self.session.household.favorites), 2)
+
+    def test_a_stream_this_computer_serves_never_becomes_a_sonos_favorite(self):
+        localfiles = sys.modules[self.session.package.__name__ + ".localfiles"]
+        address = localfiles.local_address(self.living)
+        self.living.play_uri(f"x-rincon-mp3radio://{address}:9000/relay", meta=didl("Relayed"))
+        self.assertEqual(self.press("kb:shift+f"), "This source cannot be added to favorites.")
+        self.assertEqual(len(self.session.household.favorites), 2)
+
+    def test_a_full_list_is_said(self):
+        self.session.household.favorites_limit = 2
+        self.living.play_uri("x-sonosapi-stream:s1234?sid=254", meta=didl("Radio Paradise"))
+        self.assertEqual(self.press("kb:shift+f"), "Sonos favorites are full. Remove some first.")
 
 
 class Sections(LibraryTest):

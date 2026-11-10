@@ -7,9 +7,11 @@ the emulator useful for responsiveness questions, not just for logic.
 
 import datetime
 import itertools
+import queue
 import threading
 import time
 import types
+import xml.etree.ElementTree as ET
 
 
 # Attributes the add-on reads or writes as speaker settings.  Each access is a
@@ -100,6 +102,14 @@ class NotSupportedException(Exception):
     pass
 
 
+class FavoritesFullError(Exception):
+    pass
+
+
+class FavoritesAlreadyAddedError(Exception):
+    pass
+
+
 class Household:
     """Owns the players, the topology and the network-call accounting."""
 
@@ -110,9 +120,12 @@ class Household:
         self.inflight = 0
         self.lock = threading.RLock()
         self.favorites = []
+        self.subscriptions = []
         self.alarms = {}
         self.alarm_ids = itertools.count(1)
         self.favorite_ids = itertools.count(1)
+        #: How many favorites the household takes before it refuses with 805.
+        self.favorites_limit = 70
         self.alarm_list_version = 0
         self.faults = {}
 
@@ -261,6 +274,30 @@ class Service:
         playback = self.player.coordinator().playback
         return {"CurrentURI": playback.uri, "CurrentURIMetaData": playback.metadata}
 
+    def subscribe(self, requested_timeout=None, auto_renew=False, **kwargs):
+        """An event subscription whose first event is the speaker's whole state, as on a real one."""
+        self.player._call("SUBSCRIBE")
+        return Subscription(self.player)
+
+
+class Subscription:
+    def __init__(self, player):
+        self.player = player
+        self.events = queue.Queue()
+        self.unsubscribed = False
+        # A firewall that keeps the speaker's NOTIFY out leaves the queue empty.
+        if not player.events_blocked:
+            playback = player.coordinator().playback
+            self.events.put(types.SimpleNamespace(variables={
+                "av_transport_uri": playback.uri,
+                "enqueued_transport_uri": playback.enqueued_uri,
+                "enqueued_transport_uri_meta_data": playback.enqueued_metadata,
+            }))
+        player.household.subscriptions.append(self)
+
+    def unsubscribe(self, strict=True):
+        self.unsubscribed = True
+
 
 class Favorite:
     def __init__(self, title, uri, item_class, item_id="FV:2/0"):
@@ -280,6 +317,9 @@ class Playback:
         self.status = "OK"
         self.uri = ""
         self.metadata = ""
+        #: What the queue or the stream was filled from; only events report it.
+        self.enqueued_uri = ""
+        self.enqueued_metadata = ""
         self.title = ""
         self.artist = ""
         self.position = 0
@@ -355,6 +395,8 @@ class SimPlayer:
         self.is_visible = visible
         #: False while the speaker does not answer: asleep, or out of range.
         self.online = True
+        #: True when its events never reach this computer (a firewall).
+        self.events_blocked = False
         #: The room a surround, subwoofer or second stereo speaker belongs to.
         self.bonded_to = None
         self.channel = None
@@ -526,9 +568,12 @@ class SimPlayer:
     def get_current_track_info(self):
         self._call("GetPositionInfo")
         playback = self.coordinator().playback
+        # From a queue, the speaker reports the track's own address.
+        queued = playback.uri.startswith("x-rincon-queue:") and 0 < playback.queue_position <= len(playback.queue)
+        track = playback.queue[playback.queue_position - 1] if queued else None
         return {
             "title": playback.title, "artist": playback.artist, "album": "",
-            "uri": playback.uri, "metadata": playback.metadata,
+            "uri": track.resources[0].uri if track is not None else playback.uri, "metadata": playback.metadata,
             "playlist_position": str(playback.queue_position),
             "position": _timestamp(playback.position),
             "duration": _timestamp(playback.duration),
@@ -576,6 +621,7 @@ class SimPlayer:
         self._call("SetAVTransportURI")
         playback = self.coordinator().playback
         playback.uri, playback.metadata = uri, meta
+        playback.enqueued_uri, playback.enqueued_metadata = uri, meta
         playback.title = playback.title or "Stream"
         if start:
             playback.state = "PLAYING"
@@ -588,13 +634,18 @@ class SimPlayer:
         self._call("AddURIToQueue")
         playback = self.coordinator().playback
         playback.queue.append(item)
+        # SoCo passes the item as EnqueuedURI, which the speaker keeps.
+        playback.enqueued_uri, playback.enqueued_metadata = item.resources[0].uri, item
         return len(playback.queue)
 
     def add_multiple_to_queue(self, items, container=None, **kwargs):
         """One request per batch, the way SoCo chunks AddMultipleURIsToQueue."""
         self._call("AddMultipleURIsToQueue")
-        self.coordinator().playback.queue.extend(items)
-        return len(self.coordinator().playback.queue)
+        playback = self.coordinator().playback
+        playback.queue.extend(items)
+        playback.enqueued_uri, playback.enqueued_metadata = (
+            (container.resources[0].uri, container) if container else ("", ""))
+        return len(playback.queue)
 
     def play_from_queue(self, index, start=True):
         self._call("SetAVTransportURI(queue)")
@@ -656,6 +707,16 @@ class Favorites:
     def remove(self, favorite):
         self.player._call("DestroyObject")
         self.player.household.favorites.remove(self._find(favorite))
+
+    def add(self, item, title=None, description=None):
+        self.player._call("CreateObject")
+        household = self.player.household
+        uri = item.resources[0].uri
+        if any(f.reference.resources[0].uri == uri for f in household.favorites):
+            raise FavoritesAlreadyAddedError("This item is already in the Sonos favorites list")
+        if len(household.favorites) >= household.favorites_limit:
+            raise FavoritesFullError("The Sonos favorites list is full")
+        return household.add_favorite(title or item.title, uri, item.item_class)
 
 
 class MusicLibrary:
@@ -794,6 +855,33 @@ class DidlMusicTrack:
         self.item_class = "object.item.audioItem.musicTrack"
 
 
+class DidlItem:
+    """What SoCo makes of a DIDL item: its title, class and resources."""
+
+    def __init__(self, title="", item_class="object.item", item_id="-1", resources=()):
+        self.title = title
+        self.item_class = item_class
+        self.item_id = item_id
+        self.resources = list(resources)
+
+
+def didl(title, item_class="object.item.audioItem.audioBroadcast"):
+    """DIDL-Lite text for one item, as a controller sends it with a URI."""
+    return ('<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+            'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
+            'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+            f'<item id="-1" parentID="-1" restricted="true"><dc:title>{title}</dc:title>'
+            f"<upnp:class>{item_class}</upnp:class></item></DIDL-Lite>")
+
+
+def from_didl_string(text):
+    items = []
+    for node in ET.fromstring(text):
+        values = {child.tag.rsplit("}", 1)[-1]: child.text for child in node}
+        items.append(DidlItem(values.get("title", ""), values.get("class", "object.item"), node.get("id", "-1")))
+    return items
+
+
 def build_soco_module(household):
     """Return a stand-in for the vendored ``soco`` package."""
     module = types.ModuleType("soco")
@@ -807,14 +895,19 @@ def build_soco_module(household):
     data_structures = types.ModuleType("soco.data_structures")
     data_structures.DidlResource = DidlResource
     data_structures.DidlMusicTrack = DidlMusicTrack
+    data_structures_entry = types.ModuleType("soco.data_structures_entry")
+    data_structures_entry.from_didl_string = from_didl_string
 
     exceptions = types.ModuleType("soco.exceptions")
     exceptions.SoCoUPnPException = SoCoUPnPException
     exceptions.NotSupportedException = NotSupportedException
+    exceptions.FavoritesFullError = FavoritesFullError
+    exceptions.FavoritesAlreadyAddedError = FavoritesAlreadyAddedError
 
     module.SoCo = SoCo
     module.config = types.SimpleNamespace(REQUEST_TIMEOUT=3)
     module.data_structures = data_structures
+    module.data_structures_entry = data_structures_entry
     module.exceptions = exceptions
     module.discover = lambda **kwargs: [p for p in household.players if p.online]
     return module

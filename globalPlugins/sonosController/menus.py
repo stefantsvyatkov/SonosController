@@ -1,16 +1,19 @@
 """Worker-side favorites, sleep timer, and alarm workflows."""
 
 import copy
+import queue
 from datetime import time
 
 from .i18n import _
 from .library import key
-from .playback import select_and_play, selected_uri
+from .media import spoken
+from .playback import select_and_play, selected_uri, source_identity
 from .util import valid_url
 from . import vendors
 
 __all__ = ["valid_url", "favorites", "Favorites", "History", "SleepTimer", "AlarmMenu",
-           "parse_alarm", "alarm_mode_supported", "play_favorite", "find_favorite"]
+           "parse_alarm", "alarm_mode_supported", "play_favorite", "find_favorite",
+           "enqueued", "keep"]
 
 
 def playable_favorite(item):
@@ -41,6 +44,67 @@ def find_favorite(player, uri):
         if favorite_uri(favorite) == uri:
             return favorite
     raise RuntimeError(_("This Sonos favorite is no longer available."))
+
+
+#: A room's own inputs and other apps' sessions: nothing a favorite could start again.
+LIVE_SOURCES = ("x-sonos-htastream:", "x-rincon-stream:", "x-rincon:", "x-sonos-vli:", "x-sonos-airplay:",
+                "x-rincon-queue:")
+
+#: Seconds a speaker has to report what its queue was filled from.
+EVENT_WAIT = 5
+
+
+def enqueued(player):
+    """What the queue was filled from (an album, a playlist or a song): its URI and metadata.
+
+    Only a speaker's events carry it, so this subscribes, reads the first event and leaves.
+    """
+    subscription = player.avTransport.subscribe(requested_timeout=60, auto_renew=False)
+    try:
+        variables = subscription.events.get(timeout=EVENT_WAIT).variables
+    except queue.Empty:
+        raise RuntimeError(_("The speaker did not say what is playing. Check firewall access for NVDA.")) from None
+    finally:
+        subscription.unsubscribe(strict=False)
+    uri = variables.get("enqueued_transport_uri") or ""
+    if not uri or uri.startswith("x-rincon-queue:"):
+        raise RuntimeError(_("Could not find out which album or playlist is playing."))
+    return uri, variables.get("enqueued_transport_uri_meta_data") or ""
+
+
+def keep(player, uri, metadata):
+    """Shift+F for what Sonos plays: add it to Sonos favorites, as the Sonos app would."""
+    if not uri:
+        raise RuntimeError(_("Nothing is selected in this room."))
+    if uri.startswith(LIVE_SOURCES):
+        raise RuntimeError(_("This source cannot be added to favorites."))
+    identity = source_identity(uri)
+    for favorite in favorites(player):
+        if source_identity(favorite_uri(favorite)) == identity:
+            return _("{title} is already a Sonos favorite.").format(title=favorite.title)
+    soco = vendors.soco()
+    if isinstance(metadata, str):
+        # Metadata from GetMediaInfo is text; from an event, SoCo has read it already.
+        try:
+            items = soco.data_structures_entry.from_didl_string(metadata) if metadata else []
+        except Exception:
+            items = []
+        metadata = items[0] if items else None
+    if metadata is None or not getattr(metadata, "title", ""):
+        # Started by an app that said nothing about it: there is no name to keep it by.
+        raise RuntimeError(_("This source cannot be added to favorites."))
+    protocol = next((r.protocol_info for r in getattr(metadata, "resources", None) or ()
+                     if getattr(r, "protocol_info", "")), "")
+    metadata.resources = [soco.data_structures.DidlResource(
+        uri=uri, protocol_info=protocol or uri.split(":", 1)[0] + ":*:*:*")]
+    title = spoken(metadata.title)
+    try:
+        player.favorites.add(metadata)
+    except soco.exceptions.FavoritesAlreadyAddedError:
+        return _("{title} is already a Sonos favorite.").format(title=title)
+    except soco.exceptions.FavoritesFullError:
+        raise RuntimeError(_("Sonos favorites are full. Remove some first.")) from None
+    return _("Added {title} to Sonos favorites.").format(title=title)
 
 
 def title_of(item):

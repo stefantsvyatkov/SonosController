@@ -471,6 +471,8 @@ def scenario_library(run):
         run.press_and_hear("y", r"^Removed\. Test Radio, 1 of 1$", "Yes removes it")
     run.press_and_hear("up", r"^Test Radio, 1 of 1$", "the list goes on with what is left")
     run.press_and_hear("enter", r"^(Playing|Starting) Test Radio", "Enter plays it")
+    run.press_and_hear("shift+f", r"^Test Radio is already a Sonos favorite\.$",
+                       "Shift+F in the layer knows what plays is a Sonos favorite")
     run.press_and_hear("h", r"^History\. Test Radio, 1 of 1$", "H lists what was played")
     run.press_and_hear("shift+f", r"^Test Radio is already a Sonos favorite\.$",
                        "Shift+F knows a Sonos favorite")
