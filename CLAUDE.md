@@ -48,6 +48,8 @@ These came from use with a screen reader. Do not change them without asking.
   In the favorites and alarm lists they move five entries.
 - The alarm's hour and minute wrap (23 -> 00), page keys with them; the duration fields stop at their ends.
 - A new alarm repeats Once, and Once is first in the list.
+- The alarm's volume slider has no 0, 100 or value labels (the owner's poll answer, 10 November 2026): they are
+  loose static texts, which NVDA read with the dialog as "Volume 0 100". The slider says its value when reached.
 - Grouping and transfer: Left and Right choose, Up and Down keep moving the volume.
 - Shift+G breaks up the selected group at once, without asking: the playing room (the coordinator) keeps
   playing, the others stop and stand alone.
@@ -217,8 +219,8 @@ Scenarios:
 
 - `smoke` - the layer turns on and names a room, the arrows move the volume, play and track reporting answer.
 - `pagekeys` - Page Up and Page Down move five, in the arrows' direction, for the volume and in speaker settings.
-- `alarms` - Up gives the next larger hour, the hours wrap, a new alarm repeats Once, a custom duration stops at
-  its largest hour.
+- `alarms` - editing and adding an alarm say nothing about the volume on opening, Up gives the next larger hour,
+  the hours wrap, a new alarm repeats Once, a custom duration stops at its largest hour.
 - `settings` - the settings sweep, and the room named once rather than twice.
 - `norooms` - an empty household is reported instead of hanging.
 - `groups` - G groups two rooms, Shift+G breaks them up and then says the room is not grouped, T moves the music.

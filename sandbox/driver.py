@@ -225,6 +225,13 @@ def open_dialog(run, combo, title, pattern, name):
     return run.hear(pattern, name, timeout=6)
 
 
+def quiet_opening(run, name):
+    """Only the title and the focused field are said as the alarm dialog opens."""
+    time.sleep(1)
+    said = run.since_mark()
+    run.check(name, not any("Volume" in u or re.search(r"\b0\b.*\b100\b", u) for u in said), repr(said))
+
+
 def tab_to(run, pattern, name, tries=8):
     """Tab through a dialog until a field matching ``pattern`` is announced."""
     for _attempt in range(tries):
@@ -291,9 +298,15 @@ def scenario_alarms(run):
         return
     enter_layer(run)
     run.press_and_hear("a", r"Alarms", "the alarms menu opens")
+    # The slider's 0, 100 and value used to be loose static texts, read with the
+    # dialog as "Volume 0 100"; the owner heard it on editing an alarm.
+    if open_dialog(run, "enter", "Sonos alarm", r"Hour", "Enter edits the existing alarm"):
+        quiet_opening(run, "editing an alarm says nothing about the volume on opening")
+        run.press_and_hear("escape", r".", "the edit dialog closes")
     if not open_dialog(run, "n", "Sonos alarm", r"Hour",
                        "the new alarm dialog opens on the hour"):
         return
+    quiet_opening(run, "a new alarm says nothing about the volume on opening")
 
     # The defect this scenario exists for: Up must give the next larger hour.
     first = run.number("home", "Home gives the smallest hour")

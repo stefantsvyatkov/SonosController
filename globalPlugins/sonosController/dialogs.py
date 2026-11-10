@@ -95,10 +95,11 @@ class AlarmDialog(wx.Dialog):
         for index in range(7):
             days.Check(index, recurrence.startswith("ON_") and str(index) in recurrence[3:])
 
+        # No wx.SL_LABELS: its 0, 100 and value are loose static texts, which NVDA
+        # reads with the dialog ("Volume 0 100"). The slider says its own value.
         grid.add("volume", _("Volume (%)"),
                  lambda: Slider(panel, value=alarm.volume if alarm else 20,
-                                minValue=0, maxValue=100,
-                                style=wx.SL_HORIZONTAL | wx.SL_LABELS))
+                                minValue=0, maxValue=100, style=wx.SL_HORIZONTAL))
 
         for key, label, value in (
                 ("enabled", _("Enabled"), alarm.enabled if alarm else True),
