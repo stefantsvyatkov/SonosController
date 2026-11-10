@@ -416,6 +416,20 @@ def _patch_soco() -> None:
 		'        mod = importlib.import_module(modname)',
 	)
 
+	# SoCo prettifies every SOAP body for a debug line, logging or not.
+	utils = DESTINATION / "soco" / "utils.py"
+	_replace(
+		utils,
+		"    import xml.dom.minidom\n",
+		"    # NVDA's frozen runtime may omit xml.dom. Logging must not block control.\n"
+		"    try:\n"
+		"        import xml.dom.minidom\n"
+		"    except ModuleNotFoundError as error:\n"
+		'        if error.name not in ("xml.dom", "xml.dom.minidom"):\n'
+		"            raise\n"
+		"        return really_unicode(unicode_text)\n",
+	)
+
 
 def _copy_licenses() -> None:
 	destination = DESTINATION / "_licenses"

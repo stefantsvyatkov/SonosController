@@ -69,6 +69,15 @@ private module namespace, so it never uses or replaces another add-on's top-leve
 It replaces SoCo's two lxml uses with standard-library XML, so the package ships no native extensions, and its XML
 diagnostics do not need `xml.dom`, which frozen NVDA lacks (`tools/check_soco_logging.py`).
 
+Every change to the tree is made by `vendorize.py`; a file edited by hand is lost at the next regeneration. That
+happened with the `xml.dom` guard in SoCo's `utils.prettify` when SoCo went to 0.32.2. SoCo prettifies every SOAP
+body for a debug line whether or not anything logs it, so in NVDA each command failed and discovery said "local
+control on port 1400 is unavailable". The emulator and the sandbox replace SoCo, so neither could see it. Two tests
+in `tests/test_vendor_isolation.py` guard it now:
+
+- One drives the vendored SoCo over HTTP against a local stand-in speaker with `xml.dom` missing.
+- One checks every unguarded standard-library import against an installed NVDA's `library.zip`.
+
 ## FFmpeg
 
 The package ships no executable: a binary inside an add-on brings its licence obligations along, and the store has

@@ -90,7 +90,13 @@ def prettify(unicode_text):
         str: A pretty-printed version of the input.
 
     """
-    import xml.dom.minidom
+    # NVDA's frozen runtime may omit xml.dom. Logging must not block control.
+    try:
+        import xml.dom.minidom
+    except ModuleNotFoundError as error:
+        if error.name not in ("xml.dom", "xml.dom.minidom"):
+            raise
+        return really_unicode(unicode_text)
 
     reparsed = xml.dom.minidom.parseString(unicode_text)
     return reparsed.toprettyxml(indent="  ", newl="\n")

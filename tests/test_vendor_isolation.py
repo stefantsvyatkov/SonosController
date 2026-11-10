@@ -1,7 +1,9 @@
 """Verify that bundled Sonos dependencies stay in the add-on namespace."""
 
 from pathlib import Path
+import ast
 import hashlib
+import os
 import subprocess
 import sys
 import textwrap
@@ -11,6 +13,13 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "globalPlugins" / "sonosController"
+NVDA_LIBRARY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "NVDA" / "library.zip"
+
+
+def _catches_import_error(handler):
+    names = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
+    return any(name is None or getattr(name, "id", None) in ("ImportError", "ModuleNotFoundError", "Exception")
+               for name in names)
 
 
 def run_isolated(code):
@@ -222,6 +231,116 @@ class VendorIsolationTests(unittest.TestCase):
             '''
         )
         self.assertIn("stdlib-xml-ok", output)
+
+    def test_real_soco_controls_a_speaker_without_xml_dom(self):
+        """The emulator replaces SoCo, so only this drives the vendored one over HTTP.
+
+        Frozen NVDA has no xml.dom.  SoCo 0.32 prettifies every SOAP body for a
+        debug line whether or not anything logs it, so without the vendor patch
+        each command failed and discovery said local control was unavailable.
+        """
+        output = run_isolated(
+            r'''
+            import http.server
+            import importlib.abc
+            import sys
+            import threading
+            from pathlib import Path
+            from xml.sax.saxutils import escape
+
+            ACTIONS = {
+                "GetHouseholdID": ([], "CurrentHouseholdID", "Sonos_test"),
+                "GetZoneGroupState": ([], "ZoneGroupState", None),
+                "GetVolume": (["InstanceID", "Channel"], "CurrentVolume", "23"),
+            }
+            ZGS = ('<ZoneGroupState><ZoneGroups><ZoneGroup Coordinator="RINCON_A1400" ID="RINCON_A1400:1">'
+                   '<ZoneGroupMember UUID="RINCON_A1400" ZoneName="Living Room" BootSeq="10" '
+                   'Location="http://127.0.0.1:{port}/xml/device_description.xml"/>'
+                   '</ZoneGroup></ZoneGroups><VanishedDevices/></ZoneGroupState>')
+
+            class Speaker(http.server.BaseHTTPRequestHandler):
+                def log_message(self, *args):
+                    pass
+
+                def reply(self, data):
+                    self.send_response(200)
+                    self.send_header("CONTENT-TYPE", 'text/xml; charset="utf-8"')
+                    self.send_header("CONTENT-LENGTH", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+
+                def do_GET(self):
+                    arguments = lambda ins, out: "".join(
+                        f"<argument><name>{name}</name><direction>{direction}</direction>"
+                        "<relatedStateVariable>X</relatedStateVariable></argument>"
+                        for name, direction in [(n, "in") for n in ins] + [(out, "out")])
+                    actions = "".join(f"<action><name>{name}</name><argumentList>{arguments(ins, out)}"
+                                      "</argumentList></action>" for name, (ins, out, _) in ACTIONS.items())
+                    self.reply(('<?xml version="1.0"?><scpd xmlns="urn:schemas-upnp-org:service-1-0">'
+                                f'<actionList>{actions}</actionList><serviceStateTable><stateVariable>'
+                                '<name>X</name><dataType>string</dataType></stateVariable>'
+                                '</serviceStateTable></scpd>').encode())
+
+                def do_POST(self):
+                    self.rfile.read(int(self.headers["Content-Length"]))
+                    action = self.headers["SOAPACTION"].strip('"').split("#")[1]
+                    service = self.path.split("/")[-2]
+                    _, out, value = ACTIONS[action]
+                    value = value or escape(ZGS.format(port=self.server.server_port))
+                    self.reply(('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>'
+                                f'<u:{action}Response xmlns:u="urn:schemas-upnp-org:service:{service}:1">'
+                                f'<{out}>{value}</{out}></u:{action}Response></s:Body></s:Envelope>').encode())
+
+            class FrozenNVDA(importlib.abc.MetaPathFinder):
+                def find_spec(self, name, path=None, target=None):
+                    if name == "xml.dom" or name.startswith("xml.dom."):
+                        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Speaker)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            for name in [n for n in sys.modules if n == "xml.dom" or n.startswith("xml.dom.")]:
+                del sys.modules[name]
+            sys.meta_path.insert(0, FrozenNVDA())
+            sys.path.insert(0, str(Path.cwd()))
+            import vendors
+            soco, _ = vendors.load()
+            player = soco.SoCo("127.0.0.1", server.server_port)
+            assert player.player_name == "Living Room", player.player_name
+            assert player.uid == "RINCON_A1400"
+            assert player.is_visible
+            assert player.volume == 23
+            assert "xml.dom" not in sys.modules
+            server.shutdown()
+            print("real-soco-ok")
+            '''
+        )
+        self.assertIn("real-soco-ok", output)
+
+    @unittest.skipUnless(NVDA_LIBRARY.is_file(), "needs an installed NVDA")
+    def test_every_unguarded_import_exists_in_frozen_nvda(self):
+        """Frozen NVDA carries only the standard-library modules its own code uses."""
+        with zipfile.ZipFile(NVDA_LIBRARY) as library:
+            present = {name.rsplit(".", 1)[0].removesuffix("/__init__").replace("/", ".")
+                       for name in library.namelist() if name.endswith(".pyc")}
+        present |= {path.name.split(".")[0] for path in NVDA_LIBRARY.parent.glob("*.pyd")}
+        present |= set(sys.builtin_module_names) | {"collections.abc", "os.path"}
+        missing = []
+        for path in PLUGIN.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            guarded = [range(node.body[0].lineno, node.body[-1].end_lineno + 1) for node in ast.walk(tree)
+                       if isinstance(node, ast.Try) and any(map(_catches_import_error, node.handlers))]
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                    names = [node.module]
+                else:
+                    continue
+                missing.extend(
+                    f"{path.relative_to(PLUGIN)}:{node.lineno} {name}" for name in names
+                    if name.split(".")[0] in sys.stdlib_module_names and name not in present
+                    and not any(node.lineno in lines for lines in guarded))
+        self.assertEqual(missing, [])
 
     def test_generated_tree_is_current_and_contains_no_native_extensions(self):
         result = subprocess.run(
