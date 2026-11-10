@@ -134,12 +134,38 @@ class Sections(LibraryTest):
         self.assertEqual(self.relay.calls, [STATION])
         self.assertEqual(self.session.mode, "layer")
 
-    def test_sonos_favorites_are_not_changed_from_here(self):
+
+class SonosFavorites(LibraryTest):
+    """F2 and Delete in the Sonos section (the owner's poll of 10 November 2026)."""
+
+    def titles(self):
+        return [f.title for f in self.session.household.favorites]
+
+    def test_f2_renames_a_sonos_favorite_for_the_whole_home(self):
         self.press("kb:f")
-        for key in ("kb:delete", "kb:f2"):
-            self.assertEqual(self.press(key), "Sonos favorites are changed in the Sonos app.")
-        self.assertEqual(self.session.responder.message_boxes, [])
-        self.assertEqual(self.session.responder.text_entries, [])
+        self.press("kb:downArrow")
+        self.session.responder.text_answer = "Джаз  вечер"
+        self.assertEqual(self.press("kb:f2"), "Renamed. Джаз вечер, 2 of 2")
+        self.assertEqual(self.session.responder.text_entries[-1].field.GetValue(), "Джаз  вечер")
+        self.assertEqual(self.titles(), ["Test Radio", "Джаз вечер"])
+        self.assertEqual(self.session.mode, "menu:favorites")
+
+    def test_delete_asks_and_removes_a_sonos_favorite(self):
+        self.press("kb:f")
+        self.session.responder.message_answer = self.session.wx.NO
+        self.assertEqual(self.session.press("kb:delete"), [])
+        self.assertEqual(self.session.responder.message_boxes[-1][1], "Remove Test Radio from Sonos favorites?")
+        self.assertEqual(self.titles(), ["Test Radio", "Jazz Playlist"])
+        self.session.responder.message_answer = self.session.wx.YES
+        self.assertEqual(self.press("kb:delete"), "Removed. Jazz Playlist, 1 of 1")
+        self.assertEqual(self.titles(), ["Jazz Playlist"])
+        self.assertEqual(self.press("kb:delete"), "Removed. No Sonos favorites. Add them in the Sonos app.")
+
+    def test_a_favorite_removed_in_the_sonos_app_meanwhile_is_said(self):
+        self.press("kb:f")
+        self.session.household.favorites.pop(0)
+        self.session.responder.message_answer = self.session.wx.YES
+        self.assertEqual(self.press("kb:delete"), "This item is no longer in the list.")
 
 
 class Removing(LibraryTest):

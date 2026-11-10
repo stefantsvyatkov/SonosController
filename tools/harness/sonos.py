@@ -112,6 +112,7 @@ class Household:
         self.favorites = []
         self.alarms = {}
         self.alarm_ids = itertools.count(1)
+        self.favorite_ids = itertools.count(1)
         self.alarm_list_version = 0
         self.faults = {}
 
@@ -206,7 +207,7 @@ class Household:
         return " | ".join(parts)
 
     def add_favorite(self, title, uri, item_class="object.item.audioItem.audioBroadcast"):
-        favorite = Favorite(title, uri, item_class)
+        favorite = Favorite(title, uri, item_class, f"FV:2/{next(self.favorite_ids)}")
         self.favorites.append(favorite)
         return favorite
 
@@ -262,8 +263,9 @@ class Service:
 
 
 class Favorite:
-    def __init__(self, title, uri, item_class):
+    def __init__(self, title, uri, item_class, item_id="FV:2/0"):
         self.title = title
+        self.item_id = item_id
         self.resource_meta_data = f"<DIDL-Lite><item><dc:title>{title}</dc:title></item></DIDL-Lite>"
         self.reference = types.SimpleNamespace(
             item_class=item_class,
@@ -371,6 +373,7 @@ class SimPlayer:
         self.renderingControl = Service(self)
         self.zone_group_state = ZoneGroupState(household)
         self.music_library = MusicLibrary(self)
+        self.favorites = Favorites(self)
         object.__setattr__(self, "_ready", True)
 
     def __repr__(self):
@@ -630,6 +633,29 @@ class SimPlayer:
 
 def _timestamp(total):
     return f"{total // 3600}:{total // 60 % 60:02}:{total % 60:02}"
+
+
+class Favorites:
+    """SoCo's ``Favorites``: the household's list, changed through any speaker."""
+
+    def __init__(self, player):
+        self.player = player
+
+    def _find(self, favorite):
+        wanted = getattr(favorite, "item_id", favorite)
+        for item in self.player.household.favorites:
+            if item.item_id == wanted:
+                return item
+        raise SoCoUPnPException("UPnP Error 701 received", error_code="701")
+
+    def rename(self, favorite, new_title):
+        self.player._call("UpdateObject")
+        item = self._find(favorite)
+        item.title = item.reference.title = new_title
+
+    def remove(self, favorite):
+        self.player._call("DestroyObject")
+        self.player.household.favorites.remove(self._find(favorite))
 
 
 class MusicLibrary:

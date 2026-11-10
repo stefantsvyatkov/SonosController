@@ -461,8 +461,15 @@ def scenario_library(run):
     run.press_and_hear("right", r"^No local favorites\. Shift\+F adds what is playing\.$",
                        "Right shows the empty Local favorites")
     run.press_and_hear("left", r"^Sonos favorites\. Test Radio, 1 of 2$", "Left goes back")
-    run.press_and_hear("delete", r"^Sonos favorites are changed in the Sonos app\.$",
-                       "a Sonos favorite is not removed from here")
+    run.press_and_hear("down", r"^Jazz Playlist, 2 of 2$", "Down reaches the second Sonos favorite")
+    if open_dialog(run, "f2", "Rename", r"Name", "F2 renames a Sonos favorite too"):
+        press("control+a")
+        type_text("Evening")
+        run.press_and_hear("enter", r"^Renamed\. Evening, 2 of 2$", "the Sonos favorite's new name is said")
+    if open_dialog(run, "delete", "Remove", r"Remove Evening from Sonos favorites\?",
+                   "Delete asks before removing a Sonos favorite"):
+        run.press_and_hear("y", r"^Removed\. Test Radio, 1 of 1$", "Yes removes it")
+    run.press_and_hear("up", r"^Test Radio, 1 of 1$", "the list goes on with what is left")
     run.press_and_hear("enter", r"^(Playing|Starting) Test Radio", "Enter plays it")
     run.press_and_hear("h", r"^History\. Test Radio, 1 of 1$", "H lists what was played")
     run.press_and_hear("shift+f", r"^Test Radio is already a Sonos favorite\.$",

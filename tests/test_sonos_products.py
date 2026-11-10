@@ -234,6 +234,9 @@ class SoCoDrift(unittest.TestCase):
                 name)
         for name in ("set_relative_volume", "volume", "mute"):
             self.assertTrue(hasattr(self.groups.ZoneGroup, name), name)
+        favorites = sys.modules[self.core.__name__.rsplit(".", 1)[0] + ".favorites"].Favorites
+        for name in ("rename", "remove"):
+            self.assertTrue(hasattr(favorites, name) and hasattr(simulator.Favorites, name), name)
         group = self.groups.ZoneGroup("RINCON_1", coordinator=None, members=set())
         self.assertTrue(hasattr(group, "coordinator") and hasattr(group, "members"))
 

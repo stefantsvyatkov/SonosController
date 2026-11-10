@@ -4,6 +4,7 @@ import copy
 from datetime import time
 
 from .i18n import _
+from .library import key
 from .playback import select_and_play, selected_uri
 from .util import valid_url
 from . import vendors
@@ -58,6 +59,14 @@ class EntryList:
     def items(self):
         return self.entries()
 
+    def name(self, entry):
+        """Which list the selected entry belongs to, for the question before removing it."""
+        return self.list_name
+
+    def wanted(self, entry):
+        """What finds the entry again after a dialog, whatever it is called by then."""
+        return key(entry)
+
     def index(self):
         return 0
 
@@ -103,8 +112,9 @@ class Favorites(EntryList):
     """F: the household's Sonos favorites and the add-on's Local favorites.
 
     Left and Right switch between the two sections; each keeps its own place.
-    Only Local favorites can be removed or renamed here: the Sonos favorites
-    are shared by everyone in the home and belong to the Sonos app.
+    F2 and Delete work in both (the owner's poll of 10 November 2026).  A Sonos
+    favorite is shared by everyone in the home, so a change made here is the
+    one the Sonos app shows too.
     """
 
     SONOS, LOCAL = 0, 1
@@ -144,11 +154,42 @@ class Favorites(EntryList):
         self.section = self.LOCAL if self.section == self.SONOS else self.SONOS
         return self.heading()
 
-    def local(self):
-        """The selected Local favorite; the Sonos section is not changed from here."""
-        if self.section == self.SONOS:
-            raise RuntimeError(_("Sonos favorites are changed in the Sonos app."))
-        return self.current()
+    def name(self, entry):
+        return "favorites" if isinstance(entry, dict) else "sonos"
+
+    def wanted(self, entry):
+        return key(entry) if isinstance(entry, dict) else ("sonos-favorite", entry.item_id)
+
+    def remove(self, wanted):
+        if wanted[0] != "sonos-favorite":
+            return super().remove(wanted)
+        self._change_sonos(wanted, self.player.favorites.remove)
+        return _("Removed. {entry}").format(entry=self.describe())
+
+    def rename(self, wanted, title):
+        if wanted[0] != "sonos-favorite":
+            return super().rename(wanted, title)
+        self._change_sonos(wanted, lambda favorite: self.player.favorites.rename(favorite, title))
+        return _("Renamed. {entry}").format(entry=self.describe())
+
+    def _change_sonos(self, wanted, change):
+        """Change one Sonos favorite, then read the list the way every controller now sees it."""
+        favorite = next((f for f in self.sonos if f.item_id == wanted[1]), None)
+        if favorite is None:
+            raise RuntimeError(_("This item is no longer in the list."))
+        try:
+            change(favorite)
+        except Exception as error:
+            # 701: someone removed it in the Sonos app meanwhile.
+            if str(getattr(error, "error_code", "")) == "701":
+                raise RuntimeError(_("This item is no longer in the list.")) from error
+            raise
+        self.section = self.SONOS
+        self.sonos = favorites(self.player)
+        # A renamed favorite may move in the list; the selection follows it.
+        moved = next((i for i, f in enumerate(self.sonos) if f.item_id == wanted[1]), None)
+        if moved is not None:
+            self.indexes[self.SONOS] = moved
 
 
 class History(EntryList):

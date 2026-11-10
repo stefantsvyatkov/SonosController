@@ -59,10 +59,11 @@ These came from use with a screen reader. Do not change them without asking.
   playing, the others stop and stand alone.
 - F has two sections, Sonos favorites and Local favorites, switched with Left and Right; each keeps its place.
   Shift+F adds what the add-on is playing (a U address, a file or a folder) to Local favorites, and in the
-  history the selected entry. Delete asks before removing, in Local favorites and in the history alike (No is the
-  default); F2 renames. Sonos favorites are not removed or renamed from here: they are the whole home's, in the
-  Sonos app. H lists what the add-on played, newest first, the last 50; a replay moves to the top and keeps a
-  name given with F2 (the owner's polls, 10 November 2026).
+  history the selected entry; it never adds to Sonos favorites. Delete asks before removing, in both sections of
+  F and in the history alike (No is the default); F2 renames. A Sonos favorite renamed or removed here changes for
+  the whole home, through SoCo's `favorites` (UpdateObject, DestroyObject), and the list is read again after.
+  H lists what the add-on played, newest first, the last 50; a replay moves to the top and keeps a name given
+  with F2 (the owner's polls, 10 November 2026; Sonos favorites editable by the poll of that evening).
 - Speaker settings name the speaker once, when the selection reaches it, and never twice ("Move 2, Sonos Move 2").
 - Long messages and the voice announcements stay.
 
@@ -281,8 +282,8 @@ Scenarios:
 - `groups` - G groups two rooms, Shift+G breaks them up and then says the room is not grouped, T moves the music.
 - `products` - with `-Household products`: all 22 rooms answer, the Arc Ultra on TV and its speech enhancement, a
   Move 2's battery, a Port at fixed output.
-- `library` - F's two sections, a Sonos favorite played and found in H, F2 renaming it in NVDA's own reading of
-  the dialog, and Delete asking first (Enter keeps, Y removes).
+- `library` - F's two sections, a Sonos favorite renamed and removed, another played and found in H, F2 renaming
+  it in NVDA's own reading of the dialog, and Delete asking first (Enter keeps, Y removes).
 
 Every scenario also fails if NVDA logged an error or left a crash dump; the agent keeps the log written while NVDA
 closes as `nvda-closing.log`, since a restarted NVDA writes its log anew.

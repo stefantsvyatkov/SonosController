@@ -17,10 +17,10 @@ from .backend import Controller
 from .discovery import RoomDiscovery
 from .grouping import Grouping, break_up
 from .i18n import _
-from .library import Library, files_entry, key as entry_key, sonos_entry, url_entry
+from .library import Library, files_entry, sonos_entry, url_entry
 from .localfiles import LocalFiles
 from .menus import (AlarmMenu, EntryList, Favorites, History, SleepTimer, favorite_uri, find_favorite,
-                    play_favorite)
+                    play_favorite, title_of)
 from .modes import KEYS, MENU_MODES, MODE_ONLY, MODES, ROOM_MODES, SETTINGS_MODES, TOGGLE
 from .playbacksettings import PlaybackSettings
 from .relayhooks import NeedsFFmpeg, Relay
@@ -209,15 +209,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         elif action in ("menuLeft", "menuRight") and isinstance(menu, Favorites):
                             message = menu.switch()
                         elif action in ("menuDelete", "menuRename"):
-                            entry = menu.local() if isinstance(menu, Favorites) else menu.current()
+                            entry = menu.current()
                             if entry is None:
                                 message = menu.describe()
                             elif action == "menuDelete":
-                                wx.CallAfter(self._confirmRemove, generation, menu.list_name,
-                                             entry_key(entry), entry["title"])
+                                wx.CallAfter(self._confirmRemove, generation, menu.name(entry),
+                                             menu.wanted(entry), title_of(entry))
                                 continue
                             else:
-                                wx.CallAfter(self._askRename, generation, entry_key(entry), entry["title"])
+                                wx.CallAfter(self._askRename, generation, menu.wanted(entry), title_of(entry))
                                 continue
                         elif action == "menuDeleteConfirmed":
                             message = menu.remove(payload[1])
@@ -691,8 +691,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def _confirmRemove(self, generation, name, wanted, title):
         def show(parent):
-            question = (_("Remove {title} from Local favorites?") if name == "favorites"
-                        else _("Remove {title} from the history?"))
+            question = {"favorites": _("Remove {title} from Local favorites?"),
+                        "sonos": _("Remove {title} from Sonos favorites?")}.get(
+                            name, _("Remove {title} from the history?"))
             answer = wx.MessageBox(question.format(title=title), _("Remove"),
                                    wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION, parent)
             if answer == wx.YES and generation == self.generation:
