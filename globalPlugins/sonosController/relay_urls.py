@@ -11,6 +11,7 @@ from .urls import (
     metadata,
     resolve_audio,
 )
+from .util import Played
 
 
 #: Speaker responses that mean "wrong format", which local conversion can fix.
@@ -43,7 +44,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
         else:
             try:
                 if _direct(player, source, cancelled, progress):
-                    return _("Playing {title}").format(title=source.title)
+                    return Played(_("Playing {title}").format(title=source.title), source.title)
             except Cancelled:
                 return ""
             except Exception as error:
@@ -67,7 +68,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
                     progress,
                     session.failed.is_set,
                 )
-                return _("Playing {title}").format(title=source.title)
+                return Played(_("Playing {title}").format(title=source.title), source.title)
             except Cancelled:
                 if session is not None:
                     relay.stop(session)

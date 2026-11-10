@@ -1,6 +1,9 @@
 """Menu selection, timer staging, playback routes, and alarm persistence."""
 from datetime import time
+from pathlib import Path
+import shutil
 import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -11,6 +14,7 @@ menus = load("menus")
 Favorites, SleepTimer, AlarmMenu = menus.Favorites, menus.SleepTimer, menus.AlarmMenu
 valid_url, parse_alarm = menus.valid_url, menus.parse_alarm
 vendors = load("vendors")
+library = load("library")
 
 
 class MenuTests(unittest.TestCase):
@@ -19,6 +23,9 @@ class MenuTests(unittest.TestCase):
         Group(self.player)
         self.controller = backend.Controller(lambda **kw: [self.player])
         self.calls = []
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        self.library = library.Library(Path(folder) / "library.json")
 
     def test_url_clipboard_filter(self):
         for value in ("https://example.com/song.mp3", " http://192.168.0.5:8000/radio "):
@@ -37,12 +44,12 @@ class MenuTests(unittest.TestCase):
         self.player.play_uri = lambda uri, meta, start=False: self.calls.append(("uri", uri, meta))
         self.player.add_to_queue = lambda ref: 7
         self.player.play_from_queue = lambda index, start=False: self.calls.append(("queue", index))
-        menu = Favorites(self.controller)
+        menu = Favorites(self.controller, self.library)
         self.assertEqual(self.calls, [])
         with patch("sonosAddon.menus.selected_uri", return_value=True):
-            menu.play()
+            menus.play_favorite(self.player, menu.current())
             menu.move(1)
-            menu.play()
+            menus.play_favorite(self.player, menu.current())
         self.assertEqual(self.calls[-1], ("queue", 6))
         self.assertEqual(self.calls[0][0], "uri")
 
@@ -50,7 +57,7 @@ class MenuTests(unittest.TestCase):
         empty = SimpleNamespace(title="Discover Sonos Radio", reference=SimpleNamespace(resources=[], item_class="object.container"))
         song = self.favorite("x-sonos-spotify:track", "object.item.audioItem.musicTrack")
         self.player.music_library = SimpleNamespace(get_sonos_favorites=lambda **kw: [empty, song])
-        self.assertEqual(Favorites(self.controller).items, [song])
+        self.assertEqual(Favorites(self.controller, self.library).sonos, [song])
 
     def test_timer_is_staged_and_custom_is_one_minute(self):
         self.player.get_sleep_timer = lambda: None

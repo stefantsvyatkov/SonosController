@@ -17,8 +17,10 @@ from .backend import Controller
 from .discovery import RoomDiscovery
 from .grouping import Grouping, break_up
 from .i18n import _
+from .library import Library, files_entry, key as entry_key, sonos_entry, url_entry
 from .localfiles import LocalFiles
-from .menus import AlarmMenu, Favorites, SleepTimer
+from .menus import (AlarmMenu, EntryList, Favorites, History, SleepTimer, favorite_uri, find_favorite,
+                    play_favorite)
 from .modes import KEYS, MENU_MODES, MODE_ONLY, MODES, ROOM_MODES, SETTINGS_MODES, TOGGLE
 from .playbacksettings import PlaybackSettings
 from .relayhooks import NeedsFFmpeg, Relay
@@ -64,6 +66,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.stop = threading.Event()
         self.dialogOpen = False
         self.localFiles = LocalFiles()
+        self.library = Library()
         self.transferCancel = threading.Event()
         self.worker = None
         self._inputHookRegistered = False
@@ -156,13 +159,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                                               lambda addresses: wx.CallAfter(self._rememberAddresses, addresses))
                     controller = Controller(discovery, self.selected,
                                             lambda uid: wx.CallAfter(self._remember, uid))
-                if action in ("menuFavoritesStart", "menuTimerStart", "menuAlarmsStart"):
-                    factory = {"menuFavoritesStart": Favorites, "menuTimerStart": SleepTimer,
-                               "menuAlarmsStart": AlarmMenu}[action]
-                    menu = factory(controller)
-                    opening = {"menuFavoritesStart": _("Favorites. {entry}"),
-                               "menuTimerStart": _("Sleep timer. {entry}"),
-                               "menuAlarmsStart": _("Alarms. {entry}")}[action]
+                if action in ("menuFavoritesStart", "menuHistoryStart"):
+                    menu = (Favorites if action == "menuFavoritesStart" else History)(controller, self.library)
+                    message = menu.heading()
+                elif action in ("menuTimerStart", "menuAlarmsStart"):
+                    menu = (SleepTimer if action == "menuTimerStart" else AlarmMenu)(controller)
+                    opening = _("Sleep timer. {entry}") if action == "menuTimerStart" else _("Alarms. {entry}")
                     message = opening.format(entry=menu.describe())
                 elif action.startswith("menu"):
                     if menu is None:
@@ -185,11 +187,47 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         message = menu.move(1 if action == "menuDown" else -1)
                     elif action in ("menuPageUp", "menuPageDown"):
                         message = menu.move(PAGE_STEP if action == "menuPageDown" else -PAGE_STEP)
-                    elif isinstance(menu, Favorites) and action == "menuEnter":
-                        self.relay.stop()
-                        message = menu.play(cancelled)
-                        menu = None
-                        wx.CallAfter(self._finishMode, generation)
+                    elif isinstance(menu, EntryList):
+                        if action == "menuEnter":
+                            entry = menu.current()
+                            if entry is None:
+                                message = menu.describe()
+                            else:
+                                player = controller.current().coordinator
+                                menu = None
+                                wx.CallAfter(self._finishMode, generation)
+                                if isinstance(entry, dict):
+                                    if entry["kind"] == "url":
+                                        # Kept so that an FFmpeg download can replay it.
+                                        payload = (player, entry["url"], entry["title"])
+                                    message = self._playEntry(controller, player, entry, cancelled, generation)
+                                else:
+                                    self.relay.stop()
+                                    message = play_favorite(player, entry, cancelled)
+                                    if message:
+                                        self._record(player, sonos_entry(entry.title, favorite_uri(entry)))
+                        elif action in ("menuLeft", "menuRight") and isinstance(menu, Favorites):
+                            message = menu.switch()
+                        elif action in ("menuDelete", "menuRename"):
+                            entry = menu.local() if isinstance(menu, Favorites) else menu.current()
+                            if entry is None:
+                                message = menu.describe()
+                            elif action == "menuDelete":
+                                wx.CallAfter(self._confirmRemove, generation, menu.list_name,
+                                             entry_key(entry), entry["title"])
+                                continue
+                            else:
+                                wx.CallAfter(self._askRename, generation, entry_key(entry), entry["title"])
+                                continue
+                        elif action == "menuDeleteConfirmed":
+                            message = menu.remove(payload[1])
+                        elif action == "menuRenamed":
+                            message = menu.rename(*payload)
+                        elif action == "menuAddFavorite":
+                            entry = menu.current()
+                            message = self._addFavorite(entry) if entry else menu.describe()
+                        else:
+                            continue
                     elif isinstance(menu, AlarmMenu):
                         if action == "menuSpace":
                             message = menu.toggle()
@@ -223,18 +261,18 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     player, selection = payload
                     self.relay.stop()
                     message = self.localFiles.play(player, selection, cancelled)
+                    if message:
+                        self._record(player, files_entry(selection["path"], selection.get("recursive")))
                 elif action == "urlStart":
                     urlPlayer = controller.current().coordinator
                     wx.CallAfter(self._showUrl, generation, urlPlayer.player_name, urlPlayer)
                     continue
                 elif action == "urlPlay":
-                    urlPlayer, url = payload
+                    urlPlayer, url = payload[:2]
                     if not valid_url(url):
                         raise RuntimeError(_("Enter an HTTP or HTTPS audio URL."))
-                    message = self.relay.play_url(
-                        urlPlayer.group.coordinator, url, cancelled,
-                        lambda text: wx.CallAfter(self._announce, generation, text),
-                        [room.ip_address for room in controller.rooms])
+                    message = self._playEntry(controller, urlPlayer, url_entry(url, "".join(payload[2:])),
+                                              cancelled, generation)
                 elif action in ("settingsStart", "playbackSettingsStart"):
                     settings = (PlaybackSettings(controller) if action == "playbackSettingsStart"
                                 else Settings(controller))
@@ -268,6 +306,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                         message = grouping.move(1 if action == "groupRight" else -1)
                 elif action == "breakUp":
                     message = break_up(controller, cancelled)
+                elif action == "addFavorite":
+                    player = controller.current().coordinator
+                    entry = self.library.playing(player.get_current_media_info().get("uri", ""))
+                    message = (self._addFavorite(entry) if entry else
+                               _("What is playing here was not started from the add-on. "
+                                 "Press H to add it from the history."))
                 elif action == "transferStart":
                     transfer = Transfer(controller, self._roomCancel(cancelled))
                     message = transfer.describe()
@@ -299,7 +343,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 else:
                     log.exception("Sonos operation failed")
                 if action in ("settingsStart", "playbackSettingsStart",
-                              "menuFavoritesStart", "menuTimerStart", "menuAlarmsStart"):
+                              "menuFavoritesStart", "menuHistoryStart", "menuTimerStart",
+                              "menuAlarmsStart"):
                     if action.startswith("menu"):
                         menu = None
                     wx.CallAfter(self._finishMode, generation)
@@ -320,6 +365,46 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 wx.CallAfter(self._copyTrack, generation, message["copy"])
             elif message:
                 wx.CallAfter(self._announce, generation, message)
+
+    def _playEntry(self, controller, player, entry, cancelled, generation):
+        """Play an address, file, folder or Sonos favorite the add-on keeps, then remember it."""
+        kind = entry["kind"]
+        if kind == "url":
+            message = self.relay.play_url(
+                player.group.coordinator, entry["url"], cancelled,
+                lambda text: wx.CallAfter(self._announce, generation, text),
+                [room.ip_address for room in controller.rooms])
+            if message and entry["title"] == entry["url"]:
+                entry = dict(entry, title=getattr(message, "name", "") or entry["url"])
+        elif kind == "files":
+            self.relay.stop()
+            message = self.localFiles.play(
+                player, {"path": entry["path"], "recursive": entry.get("recursive", False)}, cancelled)
+        else:
+            favorite = find_favorite(player, entry["uri"])
+            self.relay.stop()
+            message = play_favorite(player, favorite, cancelled)
+        if message:
+            self._record(player, entry)
+        return message
+
+    def _record(self, player, entry):
+        """Put what started at the top of the history, with the URI the speaker now plays."""
+        try:
+            media = player.group.coordinator.get_current_media_info().get("uri", "")
+        except Exception:
+            media = ""
+        try:
+            self.library.remember(entry, media)
+        except OSError:
+            log.warning("Sonos: the history could not be saved", exc_info=True)
+
+    def _addFavorite(self, entry):
+        if entry["kind"] == "sonos":
+            return _("{title} is already a Sonos favorite.").format(title=entry["title"])
+        if self.library.add_favorite(entry):
+            return _("Added {title} to Local favorites.").format(title=entry["title"])
+        return _("{title} is already in Local favorites.").format(title=entry["title"])
 
     def _roomCancel(self, cancelled):
         """Grouping and transfer also stop when the user presses Escape."""
@@ -481,8 +566,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     def script_newAlarm(self, gesture):
         self._submit("newAlarm")
 
-    def script_deleteAlarm(self, gesture):
-        self._submit("deleteAlarm")
+    def script_delete(self, gesture):
+        self._submit("delete")
+
+    def script_rename(self, gesture):
+        self._submit("rename")
+
+    def script_addFavorite(self, gesture):
+        self._submit("addFavorite")
 
     # -- modes -----------------------------------------------------------
 
@@ -516,6 +607,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
     def script_alarms(self, gesture):
         self._startMode("alarms")
+
+    def script_history(self, gesture):
+        self._startMode("history")
 
     # -- dialogs ---------------------------------------------------------
 
@@ -587,6 +681,31 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION, parent)
             if answer == wx.YES and generation == self.generation:
                 self._enqueue(("menuDeleteConfirmed", alarm_id))
+        self._modal(generation, show)
+
+    def _confirmRemove(self, generation, name, wanted, title):
+        def show(parent):
+            question = (_("Remove {title} from Local favorites?") if name == "favorites"
+                        else _("Remove {title} from the history?"))
+            answer = wx.MessageBox(question.format(title=title), _("Remove"),
+                                   wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION, parent)
+            if answer == wx.YES and generation == self.generation:
+                self._enqueue(("menuDeleteConfirmed", (name, wanted)))
+        self._modal(generation, show)
+
+    def _askRename(self, generation, wanted, title):
+        def show(parent):
+            dialog = wx.TextEntryDialog(parent, _("Name"), _("Rename"), title)
+            try:
+                if dialog.ShowModal() != wx.ID_OK or generation != self.generation:
+                    return
+                name = " ".join(dialog.GetValue().split())
+                if name and name != title:
+                    self._enqueue(("menuRenamed", (wanted, name)))
+                else:
+                    self._announce(generation, _("Name not changed."))
+            finally:
+                dialog.Destroy()
         self._modal(generation, show)
 
     def _offerFFmpeg(self, generation, refusal, payload):

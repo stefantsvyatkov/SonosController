@@ -57,6 +57,12 @@ These came from use with a screen reader. Do not change them without asking.
 - Grouping and transfer: Left and Right choose, Up and Down keep moving the volume.
 - Shift+G breaks up the selected group at once, without asking: the playing room (the coordinator) keeps
   playing, the others stop and stand alone.
+- F has two sections, Sonos favorites and Local favorites, switched with Left and Right; each keeps its place.
+  Shift+F adds what the add-on is playing (a U address, a file or a folder) to Local favorites, and in the
+  history the selected entry. Delete asks before removing, in Local favorites and in the history alike (No is the
+  default); F2 renames. Sonos favorites are not removed or renamed from here: they are the whole home's, in the
+  Sonos app. H lists what the add-on played, newest first, the last 50; a replay moves to the top and keeps a
+  name given with F2 (the owner's polls, 10 November 2026).
 - Speaker settings name the speaker once, when the selection reaches it, and never twice ("Move 2, Sonos Move 2").
 - Long messages and the voice announcements stay.
 
@@ -129,6 +135,25 @@ a good download, a tampered one, cancellation, and that neither failure leaves a
   already sent cannot be recalled.
 - Volume is an integer 0-100; speakers truncate fractions. The add-on is disabled in secure mode.
 
+## Local favorites and history
+
+`library.py` keeps both lists in `sonosController-library.json` in NVDA's configuration folder
+(`NVDAState.WritePaths.configDir`), beside the downloaded FFmpeg, so they survive updates and follow a portable
+copy. It is written to a temporary file and moved into place; a file that cannot be read is renamed `.json.bad`
+rather than overwritten, and entries that do not validate are skipped. Entries are plain dicts of three kinds:
+`url`, `files` (path and `recursive`) and `sonos` (a Sonos favorite's URI, history only, looked up again in the
+household when replayed).
+
+Every play the add-on starts (`urlPlay`, `localPlay`, Enter in F or H) goes through `_playEntry` or `_record`, which
+puts the entry at the top of the history with `media`, the URI the speaker reports once playing. Shift+F in the
+layer looks that URI up, so it adds only what the add-on started, even after NVDA restarts. URL playback returns a
+`util.Played`, a str that also carries the stream's name (`name`, since `title` is a str method), taken from
+`icy-name` or the playlist; that is the name a history entry gets.
+
+`menus.EntryList` is the shared list behaviour (move, remove, rename); `Favorites` adds the Sonos section and
+`History` is the plain list. The worker asks on the main thread (`_confirmRemove`, `_askRename`) and acts on the
+answer as `menuDeleteConfirmed` / `menuRenamed`, by entry key rather than position.
+
 ## The emulator
 
 `tools/harness` loads the real, unmodified `globalPlugins/sonosController` against fake NVDA modules and a
@@ -176,6 +201,9 @@ address, a port per room) build them, with the bonded speakers invisible. Readin
 makes one speaker time out and only that one. `product_household()` has one of every kind, and
 `tests/test_sonos_products.py` walks it; its `SoCoDrift` tests fail when a name the add-on or the simulator uses is
 not the vendored SoCo's, which is what keeps a SoCo update honest.
+
+Each `Session` gets its own NVDA configuration folder (`session.config_dir`, a fake `NVDAState`), removed on
+`close()`, so the library file a test writes never outlives it; `tests/test_sonos_library.py` reads it back.
 
 `Session(network="real")` keeps the vendored SoCo, so the add-on performs genuine discovery and control on the LAN.
 Use it only against speakers you are willing to have change state.
@@ -230,6 +258,8 @@ Scenarios:
 - `groups` - G groups two rooms, Shift+G breaks them up and then says the room is not grouped, T moves the music.
 - `products` - with `-Household products`: all 22 rooms answer, the Arc Ultra on TV and its speech enhancement, a
   Move 2's battery, a Port at fixed output.
+- `library` - F's two sections, a Sonos favorite played and found in H, F2 renaming it in NVDA's own reading of
+  the dialog, and Delete asking first (Enter keeps, Y removes).
 
 Every scenario also fails if NVDA logged an error or left a crash dump; the agent keeps the log written while NVDA
 closes as `nvda-closing.log`, since a restarted NVDA writes its log anew.

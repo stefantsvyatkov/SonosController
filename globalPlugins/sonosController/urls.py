@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit, unquote
 from xml.etree import ElementTree as ET
 from .i18n import _
 from .playback import source_identity
-from .util import transient, valid_url
+from .util import Played, transient, valid_url
 from . import vendors
 
 
@@ -377,7 +377,7 @@ def play_url(player, url, cancelled=lambda: False, progress=lambda message: None
             raise RuntimeError(_("Direct Sonos URL playback does not support Opus."))
         try:
             if _direct(player, source, cancelled, progress):
-                return _("Playing {title}").format(title=source.title)
+                return Played(_("Playing {title}").format(title=source.title), source.title)
         except Cancelled:
             return ""
         except Exception as error:

@@ -19,6 +19,19 @@ def valid_url(text):
         return False
 
 
+class Played(str):
+    """What is said when playback starts, carrying the title that started.
+
+    It is still the plain message everywhere it is spoken or compared; the
+    layer reads ``name`` to name the history entry (``title`` is a str method).
+    """
+
+    def __new__(cls, message, name):
+        value = super().__new__(cls, message)
+        value.name = name
+        return value
+
+
 def timestamp(total):
     """Seconds as ``H:MM:SS``."""
     return f"{total // 3600}:{total // 60 % 60:02}:{total % 60:02}"

@@ -33,6 +33,7 @@ li {
 <li>Announcing what is playing, elapsed and remaining track time, and the battery level of portable speakers.</li>
 <li>Grouping and ungrouping rooms, and transferring playback between rooms.</li>
 <li>Playing Sonos Favorites, internet audio streams, and music files stored on your computer.</li>
+<li>Keeping your own Local favorites and a history of what you played.</li>
 <li>Creating, editing, enabling, disabling, and deleting alarms.</li>
 <li>Setting a sleep timer.</li>
 <li>Adjusting supported speaker settings, including bass, treble, night mode, speech enhancement, and subwoofer level.</li>
@@ -62,7 +63,9 @@ li {
 <li>G - Open room grouping.</li>
 <li>Shift+G - Ungroup the selected room group.</li>
 <li>T - Transfer playback to another room.</li>
-<li>F - Sonos Favorites.</li>
+<li>F - Favorites: Sonos Favorites and Local favorites.</li>
+<li>Shift+F - Add what the add-on is playing to Local favorites.</li>
+<li>H - History of what the add-on played.</li>
 <li>U - Play an internet radio stream or another audio URL.</li>
 <li>Control+F - Play an audio file or folder from your computer.</li>
 <li>A - Alarms.</li>
@@ -73,7 +76,7 @@ li {
 
 <p>Available commands depend on the playback source. For example, an internet radio station may not support skipping tracks. The add-on announces when an operation is unavailable.</p>
 
-<p>G, T, F, A, S, Control+S, and Control+P open additional controls. Press the same shortcut again or Escape to close them. A Sonos command not used by the current menu closes that menu and performs its normal function.</p>
+<p>G, T, F, H, A, S, Control+S, and Control+P open additional controls. Press the same shortcut again or Escape to close them. A Sonos command not used by the current menu closes that menu and performs its normal function.</p>
 
 <h2 align="center">Groups</h2>
 
@@ -87,7 +90,13 @@ li {
 
 <h2 align="center">Favorites, addresses and files</h2>
 
-<p>Press F to browse Sonos Favorites. Use Up Arrow and Down Arrow to select an item, or Page Up and Page Down to move five items at a time. Press Enter to play the selected favorite.</p>
+<p>Press F to browse your favorites. They are in two sections: Sonos Favorites, which you manage in the Sonos app, and Local favorites, which the add-on keeps on this computer. Use Left Arrow and Right Arrow to switch between the sections. Use Up Arrow and Down Arrow to select an item, or Page Up and Page Down to move five items at a time. Press Enter to play the selected favorite.</p>
+
+<p>Local favorites can hold audio URLs, audio files, and folders. To add one, play it with U or Control+F, then press Shift+F. The name is taken from the station when it provides one. In Local favorites, press F2 to rename the selected item, or Delete to remove it after confirmation. Sonos Favorites cannot be renamed or removed from the add-on.</p>
+
+<p>Press H to open the history of what the add-on played: Sonos Favorites, audio URLs, files, and folders. The newest item is first, and the history keeps the last 50. Press Enter to play the selected item again, Shift+F to add it to Local favorites, F2 to rename it, or Delete to remove it after confirmation.</p>
+
+<p>Files and folders in Local favorites and the history play only on this computer, while NVDA is running. If a file or folder has been moved or renamed, the add-on reports that it cannot be found.</p>
 
 <p>Press U to enter an audio URL, such as an internet radio stream. If your clipboard contains a link, the address field is filled in automatically. The add-on supports direct audio streams and M3U or PLS playlists, but not ordinary web pages.</p>
 

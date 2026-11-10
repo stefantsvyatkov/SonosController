@@ -2,6 +2,7 @@
 
 import importlib
 import queue
+import shutil
 import types
 import sys
 import time
@@ -91,6 +92,7 @@ class Session:
         self.responder = self.wx.responder
         self.inputCore = modules["inputCore"]
 
+        self.config_dir = Path(modules["NVDAState"].WritePaths.configDir)
         for name, module in modules.items():
             self._saved_modules[name] = sys.modules.get(name)
             sys.modules[name] = module
@@ -155,6 +157,7 @@ class Session:
                 sys.modules[name] = module
         for name in [n for n in sys.modules if n.startswith("globalPlugins")]:
             del sys.modules[name]
+        shutil.rmtree(self.config_dir, ignore_errors=True)
 
     def __enter__(self):
         return self

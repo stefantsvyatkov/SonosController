@@ -12,7 +12,7 @@
     The agent mutes every sound device of the sandbox before each run; nothing is ever heard.
 
 .PARAMETER Scenario
-    A scenario of driver.py: smoke, pagekeys, alarms, settings, norooms, groups or products.
+    A scenario of driver.py: smoke, pagekeys, alarms, settings, norooms, groups, products or library.
 
 .PARAMETER Nvda
     NVDA versions to run on; each needs artifacts\sandbox\nvda\nvda_<version>.exe.
@@ -33,7 +33,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet("smoke", "pagekeys", "alarms", "settings", "norooms", "groups", "products")]
+    [ValidateSet("smoke", "pagekeys", "alarms", "settings", "norooms", "groups", "products", "library")]
     [string]$Scenario = "smoke",
     [string[]]$Nvda = @("2026.3"),
     [ValidateSet("default", "empty", "products")]

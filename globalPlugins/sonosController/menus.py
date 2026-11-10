@@ -8,8 +8,8 @@ from .playback import select_and_play, selected_uri
 from .util import valid_url
 from . import vendors
 
-__all__ = ["valid_url", "favorites", "Favorites", "SleepTimer", "AlarmMenu",
-           "parse_alarm", "alarm_mode_supported"]
+__all__ = ["valid_url", "favorites", "Favorites", "History", "SleepTimer", "AlarmMenu",
+           "parse_alarm", "alarm_mode_supported", "play_favorite", "find_favorite"]
 
 
 def playable_favorite(item):
@@ -30,55 +30,181 @@ def favorites(player):
             if playable_favorite(item)]
 
 
-class Favorites:
-    def __init__(self, controller):
-        self.player = controller.current().coordinator
-        self.items = favorites(self.player)
-        self.index = 0
-        if not self.items:
-            raise RuntimeError(_("No favorites."))
+def favorite_uri(favorite):
+    return favorite.reference.resources[0].uri
+
+
+def find_favorite(player, uri):
+    """The Sonos favorite a history entry points at, if the household still has it."""
+    for favorite in favorites(player):
+        if favorite_uri(favorite) == uri:
+            return favorite
+    raise RuntimeError(_("This Sonos favorite is no longer available."))
+
+
+def title_of(item):
+    return item["title"] if isinstance(item, dict) else item.title
+
+
+class EntryList:
+    """A list of the add-on's own entries: Local favorites or the history."""
+
+    #: Which of the library's lists this is.
+    list_name = "history"
+
+    def entries(self):
+        return self.library.favorites if self.list_name == "favorites" else self.library.history
+
+    def items(self):
+        return self.entries()
+
+    def index(self):
+        return 0
+
+    def set_index(self, value):
+        pass
+
+    def current(self):
+        items = self.items()
+        if not items:
+            return None
+        index = min(self.index(), len(items) - 1)
+        self.set_index(index)
+        return items[index]
+
+    def empty(self):
+        return _("History is empty.")
 
     def describe(self):
+        item = self.current()
+        if item is None:
+            return self.empty()
         return _("{title}, {position} of {total}").format(
-            title=self.items[self.index].title, position=self.index + 1, total=len(self.items))
+            title=title_of(item), position=self.index() + 1, total=len(self.items()))
 
     def move(self, delta):
-        self.index = (self.index + delta) % len(self.items)
+        items = self.items()
+        if items:
+            self.set_index((self.index() + delta) % len(items))
         return self.describe()
 
-    def play(self, cancelled=lambda: False):
-        favorite = self.items[self.index]
-        reference = favorite.reference
-        if not playable_favorite(favorite):
-            raise RuntimeError(_("Favorite has no playable URL."))
-        uri = reference.resources[0].uri
-        kind = str(getattr(reference, "item_class", "")).lower()
-        player = self.player.group.coordinator
-        if cancelled():
-            return ""
-        broadcast = ("broadcast" in kind or uri.startswith(
-            ("x-sonosapi-stream:", "x-sonosapi-radio:", "x-rincon-mp3radio:", "http:", "https:")))
-        if broadcast:
-            def select():
-                player.play_uri(uri, meta=favorite.resource_meta_data, start=False)
+    def remove(self, wanted):
+        if not self.library.remove(self.list_name, wanted):
+            raise RuntimeError(_("This item is no longer in the list."))
+        return _("Removed. {entry}").format(entry=self.describe())
 
-            def matches():
-                return selected_uri(player, uri)
-        else:
-            # Never retry AddURIToQueue: a timeout could already have appended the item.
-            position = player.add_to_queue(reference)
+    def rename(self, wanted, title):
+        if not self.library.rename(self.list_name, wanted, title):
+            raise RuntimeError(_("This item is no longer in the list."))
+        return _("Renamed. {entry}").format(entry=self.describe())
 
-            def select():
-                player.play_from_queue(position - 1, start=False)
 
-            def matches():
-                return selected_uri(player, uri, position)
-        result = select_and_play(player, select, matches, cancelled)
-        if result == "starting":
-            return _("Starting {title}").format(title=favorite.title)
-        if result:
-            return _("Playing {title}").format(title=favorite.title)
+class Favorites(EntryList):
+    """F: the household's Sonos favorites and the add-on's Local favorites.
+
+    Left and Right switch between the two sections; each keeps its own place.
+    Only Local favorites can be removed or renamed here: the Sonos favorites
+    are shared by everyone in the home and belong to the Sonos app.
+    """
+
+    SONOS, LOCAL = 0, 1
+    list_name = "favorites"
+
+    def __init__(self, controller, library):
+        self.player = controller.current().coordinator
+        self.library = library
+        library.load()
+        self.sonos = favorites(self.player)
+        if not self.sonos and not library.favorites:
+            raise RuntimeError(_("No favorites."))
+        self.section = self.SONOS if self.sonos else self.LOCAL
+        self.indexes = [0, 0]
+
+    def items(self):
+        return self.sonos if self.section == self.SONOS else self.entries()
+
+    def index(self):
+        return self.indexes[self.section]
+
+    def set_index(self, value):
+        self.indexes[self.section] = value
+
+    def empty(self):
+        if self.section == self.SONOS:
+            return _("No Sonos favorites. Add them in the Sonos app.")
+        return _("No local favorites. Shift+F adds what is playing.")
+
+    def heading(self):
+        if self.current() is None:
+            return self.empty()
+        heading = _("Sonos favorites. {entry}") if self.section == self.SONOS else _("Local favorites. {entry}")
+        return heading.format(entry=self.describe())
+
+    def switch(self):
+        self.section = self.LOCAL if self.section == self.SONOS else self.SONOS
+        return self.heading()
+
+    def local(self):
+        """The selected Local favorite; the Sonos section is not changed from here."""
+        if self.section == self.SONOS:
+            raise RuntimeError(_("Sonos favorites are changed in the Sonos app."))
+        return self.current()
+
+
+class History(EntryList):
+    """H: what the add-on played, newest first."""
+
+    def __init__(self, controller, library):
+        self.player = controller.current().coordinator
+        self.library = library
+        library.load()
+        if not library.history:
+            raise RuntimeError(_("History is empty."))
+        self.position = 0
+
+    def index(self):
+        return self.position
+
+    def set_index(self, value):
+        self.position = value
+
+    def heading(self):
+        return _("History. {entry}").format(entry=self.describe())
+
+
+def play_favorite(player, favorite, cancelled=lambda: False):
+    """Play one Sonos favorite on ``player``'s group and say how it went."""
+    if not playable_favorite(favorite):
+        raise RuntimeError(_("Favorite has no playable URL."))
+    reference = favorite.reference
+    uri = reference.resources[0].uri
+    kind = str(getattr(reference, "item_class", "")).lower()
+    player = player.group.coordinator
+    if cancelled():
         return ""
+    broadcast = ("broadcast" in kind or uri.startswith(
+        ("x-sonosapi-stream:", "x-sonosapi-radio:", "x-rincon-mp3radio:", "http:", "https:")))
+    if broadcast:
+        def select():
+            player.play_uri(uri, meta=favorite.resource_meta_data, start=False)
+
+        def matches():
+            return selected_uri(player, uri)
+    else:
+        # Never retry AddURIToQueue: a timeout could already have appended the item.
+        position = player.add_to_queue(reference)
+
+        def select():
+            player.play_from_queue(position - 1, start=False)
+
+        def matches():
+            return selected_uri(player, uri, position)
+    result = select_and_play(player, select, matches, cancelled)
+    if result == "starting":
+        return _("Starting {title}").format(title=favorite.title)
+    if result:
+        return _("Playing {title}").format(title=favorite.title)
+    return ""
 
 
 class SleepTimer:

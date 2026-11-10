@@ -6,6 +6,7 @@ behaviour matters for a bug (gesture normalisation, the order in which
 handling) it is reproduced rather than simplified.
 """
 
+import tempfile
 import types
 
 
@@ -219,10 +220,15 @@ def build(speech, callafter, clipboard, log):
 
     addonHandler.initTranslation = initTranslation
 
+    # NVDA's configuration folder, where the add-on keeps its library; a fresh
+    # one per session, removed by Session.close().
+    NVDAState = types.ModuleType("NVDAState")
+    NVDAState.WritePaths = types.SimpleNamespace(configDir=tempfile.mkdtemp(prefix="sonos-nvda-config-"))
+
     modules = {
         "ui": ui, "api": api, "inputCore": inputCore, "scriptHandler": scriptHandler,
         "globalPluginHandler": globalPluginHandler, "globalVars": globalVars,
         "config": configModule, "logHandler": logHandler, "tones": tones,
-        "wx": wx, "gui": gui, "addonHandler": addonHandler,
+        "wx": wx, "gui": gui, "addonHandler": addonHandler, "NVDAState": NVDAState,
     }
     return modules, repeat, conf

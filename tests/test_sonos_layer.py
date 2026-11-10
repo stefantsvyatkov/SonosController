@@ -199,9 +199,14 @@ class LayerTests(unittest.TestCase):
 
     def test_favorites_timer_and_alarm_routing(self):
         for starter, expected, actions in (
-            ("favorites", "menuFavoritesStart", [("down", "menuDown"), ("applyGroup", "menuEnter")]),
+            ("favorites", "menuFavoritesStart", [("down", "menuDown"), ("right", "menuRight"),
+                                                 ("delete", "menuDelete"), ("rename", "menuRename"),
+                                                 ("applyGroup", "menuEnter")]),
+            ("history", "menuHistoryStart", [("down", "menuDown"), ("delete", "menuDelete"),
+                                             ("rename", "menuRename"), ("addFavorite", "menuAddFavorite"),
+                                             ("applyGroup", "menuEnter")]),
             ("sleepTimer", "menuTimerStart", [("left", "menuLeft"), ("applyGroup", "menuEnter")]),
-            ("alarms", "menuAlarmsStart", [("newAlarm", "menuNew"), ("deleteAlarm", "menuDelete")]),
+            ("alarms", "menuAlarmsStart", [("newAlarm", "menuNew"), ("delete", "menuDelete")]),
         ):
             self.plugin.script_toggle(None)
             self.plugin.tasks.get_nowait()

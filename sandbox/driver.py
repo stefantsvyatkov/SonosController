@@ -35,7 +35,7 @@ VK = {
     "home": 0x24, "end": 0x23,
     "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
     "pageup": 0x21, "pagedown": 0x22,
-    "tab": 0x09, "enter": 0x0D, "escape": 0x1B, "space": 0x20, "delete": 0x2E,
+    "tab": 0x09, "enter": 0x0D, "escape": 0x1B, "space": 0x20, "delete": 0x2E, "f2": 0x71,
 }
 
 
@@ -75,6 +75,17 @@ def press(combo):
     for key in reversed(keys):
         _send(key, up=True)
         time.sleep(0.03)
+
+
+def type_text(text):
+    """Type letters and spaces, as a user would into an edit field."""
+    for character in text:
+        if character == " ":
+            press("space")
+        elif character.isupper():
+            press("shift+" + character.lower())
+        else:
+            press(character)
 
 
 STRING = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
@@ -440,6 +451,39 @@ def scenario_products(run):
     run.press_and_hear(TOGGLE, r".", "the layer toggles off")
 
 
+def scenario_library(run):
+    """F's two sections, the history, and NVDA reading the rename and remove dialogs."""
+    if not run.wait_for_nvda():
+        return
+    if not enter_layer(run):
+        return
+    run.press_and_hear("f", r"^Sonos favorites\. Test Radio, 1 of 2$", "F opens on the Sonos favorites")
+    run.press_and_hear("right", r"^No local favorites\. Shift\+F adds what is playing\.$",
+                       "Right shows the empty Local favorites")
+    run.press_and_hear("left", r"^Sonos favorites\. Test Radio, 1 of 2$", "Left goes back")
+    run.press_and_hear("delete", r"^Sonos favorites are changed in the Sonos app\.$",
+                       "a Sonos favorite is not removed from here")
+    run.press_and_hear("enter", r"^(Playing|Starting) Test Radio", "Enter plays it")
+    run.press_and_hear("h", r"^History\. Test Radio, 1 of 1$", "H lists what was played")
+    run.press_and_hear("shift+f", r"^Test Radio is already a Sonos favorite\.$",
+                       "Shift+F knows a Sonos favorite")
+    if open_dialog(run, "f2", "Rename", r"Name", "F2 opens the rename dialog"):
+        run.check("the dialog reads the current name", any("Test Radio" in u for u in run.since_mark()),
+                  repr(run.since_mark()))
+        press("control+a")
+        type_text("Morning")
+        run.press_and_hear("enter", r"^Renamed\. Morning, 1 of 1$", "the new name is said")
+    if open_dialog(run, "delete", "Remove", r"Remove Morning from the history\?", "Delete asks first"):
+        # No is the default, so Enter keeps the entry.
+        press("enter")
+        time.sleep(1)
+        run.press_and_hear("down", r"^Morning, 1 of 1$", "Enter on the question keeps the entry")
+    if open_dialog(run, "delete", "Remove", r"Remove Morning", "Delete asks again"):
+        run.press_and_hear("y", r"^Removed\. History is empty\.$", "Yes removes it")
+    run.press_and_hear("escape", r"^Sonos$", "Escape leaves the history")
+    run.press_and_hear(TOGGLE, r".", "the layer toggles off")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "pagekeys": scenario_pagekeys,
@@ -448,6 +492,7 @@ SCENARIOS = {
     "norooms": scenario_norooms,
     "groups": scenario_groups,
     "products": scenario_products,
+    "library": scenario_library,
 }
 
 

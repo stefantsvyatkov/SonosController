@@ -20,14 +20,15 @@ KEYS = {
     "kb:control+s": "settings", "kb:control+p": "playbackSettings",
     "kb:s": "sleepTimer", "kb:f": "favorites", "kb:control+f": "localFiles",
     "kb:u": "url", "kb:a": "alarms", "kb:e": "elapsed", "kb:r": "remaining",
-    "kb:n": "newAlarm", "kb:delete": "deleteAlarm",
+    "kb:n": "newAlarm", "kb:delete": "delete", "kb:f2": "rename",
+    "kb:shift+f": "addFavorite", "kb:h": "history",
     "kb:control+shift+leftArrow": "seekBack",
     "kb:control+shift+rightArrow": "seekForward",
     "kb:pageUp": "pageUp", "kb:pageDown": "pageDown",
 }
 
 # Actions that only make sense inside a mode, so the main layer ignores them.
-MODE_ONLY = ("applyGroup", "newAlarm", "deleteAlarm")
+MODE_ONLY = ("applyGroup", "newAlarm", "delete", "rename")
 
 TOGGLE = "kb:NVDA+shift+control+s"
 
@@ -69,7 +70,14 @@ VOLUME = frozenset({"up", "down", "pageUp", "pageDown"})
 MODES = {
     "favorites": Mode(
         start="menuFavoritesStart", shortcut="kb:f",
-        actions={**MENU_MOVES, **MENU_PAGES, "applyGroup": "menuEnter"}),
+        actions={**MENU_MOVES, **MENU_PAGES, "applyGroup": "menuEnter",
+                 "left": "menuLeft", "right": "menuRight",
+                 "delete": "menuDelete", "rename": "menuRename"}),
+    "history": Mode(
+        start="menuHistoryStart", shortcut="kb:h",
+        actions={**MENU_MOVES, **MENU_PAGES, "applyGroup": "menuEnter",
+                 "delete": "menuDelete", "rename": "menuRename",
+                 "addFavorite": "menuAddFavorite"}),
     "timer": Mode(
         start="menuTimerStart", shortcut="kb:s",
         actions={**MENU_MOVES, **MENU_PAGES, "left": "menuLeft", "right": "menuRight",
@@ -78,7 +86,7 @@ MODES = {
         start="menuAlarmsStart", shortcut="kb:a",
         actions={**MENU_MOVES, **MENU_PAGES, "playPause": "menuSpace",
                  "applyGroup": "menuEnter",
-                 "newAlarm": "menuNew", "deleteAlarm": "menuDelete"}),
+                 "newAlarm": "menuNew", "delete": "menuDelete"}),
     "settings": Mode(
         start="settingsStart", shortcut="kb:control+s",
         actions={"up": "settingsUp", "down": "settingsDown",
@@ -104,7 +112,7 @@ MODES = {
 #: arrow that raises it would take, wherever a value can be stepped at all.
 
 #: Modes whose worker state is a menu object.
-MENU_MODES = ("favorites", "timer", "alarms")
+MENU_MODES = ("favorites", "history", "timer", "alarms")
 #: Modes whose worker state is a settings object.
 SETTINGS_MODES = ("settings", "playbackSettings")
 #: Modes that mutate room grouping and therefore support cancellation.
