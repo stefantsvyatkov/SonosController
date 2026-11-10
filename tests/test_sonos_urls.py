@@ -132,3 +132,32 @@ class UrlTests(unittest.TestCase):
         sample = b"OggS" + b"\0" * 24 + b"OpusHead"
         source = urls.resolve_audio("http://example.com/live", lambda *a, **kw: Response(a[0], "application/octet-stream", sample))
         self.assertEqual(source.mime, "audio/opus")
+
+    def test_opus_served_as_audio_ogg_is_detected(self):
+        # Icecast serves Opus as audio/ogg; found on the owner's Play, 10 November 2026.
+        sample = b"OggS" + b"\0" * 24 + b"OpusHead"
+        source = urls.resolve_audio("http://example.com/live", lambda *a, **kw: Response(a[0], "audio/ogg", sample))
+        self.assertEqual(source.mime, "audio/opus")
+
+    def test_not_found_and_server_errors_are_said(self):
+        for status, said in ((404, "was not found"), (410, "was not found"), (500, "error 500"),
+                             (503, "error 503")):
+            with self.subTest(status=status), self.assertRaisesRegex(RuntimeError, said):
+                urls.resolve_audio("http://example.com/live",
+                                   lambda *a, **kw: Response(a[0], "text/plain", status=status))
+
+    def test_a_url_as_a_browser_shows_it_reaches_the_speaker_in_ascii(self):
+        self.assertEqual(urls.clean_url("http://example.com/Вложена%20папка/песен.mp3?име=да"),
+                         "http://example.com/%D0%92%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B0%20%D0%BF%D0%B0%D0%BF%D0%BA%D0%B0"
+                         "/%D0%BF%D0%B5%D1%81%D0%B5%D0%BD.mp3?%D0%B8%D0%BC%D0%B5=да".replace("да", "%D0%B4%D0%B0"))
+        self.assertEqual(urls.clean_url("http://пример.бг:8000/a.mp3"), "http://xn--e1afmkfd.xn--90ae:8000/a.mp3")
+        self.assertEqual(urls.clean_url("http://example.com/a%20b.mp3?x=1&y=%2F"), "http://example.com/a%20b.mp3?x=1&y=%2F")
+
+    def test_a_station_name_in_utf8_is_read_as_utf8(self):
+        name = "Радио Тест".encode("utf-8").decode("latin-1")
+        source = urls.resolve_audio("http://example.com/live",
+                                    lambda *a, **kw: Response(a[0], "audio/mpeg", **{"icy-name": name}))
+        self.assertEqual(source.title, "Радио Тест")
+        source = urls.resolve_audio("http://example.com/live",
+                                    lambda *a, **kw: Response(a[0], "audio/mpeg", **{"icy-name": "Café FM"}))
+        self.assertEqual(source.title, "Café FM")

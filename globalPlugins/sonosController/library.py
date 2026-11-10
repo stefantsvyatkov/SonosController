@@ -26,6 +26,8 @@ from .util import valid_url
 HISTORY_SIZE = 50
 #: A sane bound for a hand-kept list; nothing in the layer needs more.
 FAVORITES_SIZE = 500
+#: The longest name kept, the same as a station's name from its stream.
+TITLE_SIZE = 160
 FILE_NAME = "sonosController-library.json"
 KINDS = ("url", "files", "sonos")
 
@@ -169,6 +171,8 @@ class Library:
             entry = self.find(name, wanted)
             if entry is None:
                 return False
-            entry["title"] = title
+            # As long as a station's own name may be, so a paste cannot make
+            # every visit to the list read out a page of text.
+            entry["title"] = title[:TITLE_SIZE]
             self.save()
             return True

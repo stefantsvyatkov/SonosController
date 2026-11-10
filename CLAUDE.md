@@ -135,6 +135,29 @@ a good download, a tampered one, cancellation, and that neither failure leaves a
   already sent cannot be recalled.
 - Volume is an integer 0-100; speakers truncate fractions. The add-on is disabled in secure mode.
 
+What the stress test of 10 November 2026 found on the owner's speakers (an Era 100 pair, a Move 2, a Sonos
+Play), each now covered by a unit test:
+
+- A station the speaker plays reports its stream's file name as the title (`thevoicefm.m3u8`), its own
+  placeholders while it connects (`ZPSTR_BUFFERING`), "Artist - Song" again after the song and the artist, and a
+  station name sent in UTF-8 or Windows-1251 read as Latin-1. P names a station from GetMediaInfo
+  (`media.describe`) and cleans the rest (`media.spoken`, `util.readable`); the U title is cleaned the same way.
+- A radio takes two to seven seconds to start, and a room just given music is TRANSITIONING meanwhile. Space, G,
+  Shift+G and T count that as playing (`util.PLAYING`), or Space said "Play" twice and T refused the room.
+- A room just taken out of a group answered Play after more than three seconds, and played. A transport command
+  that times out is checked against the state before it is called a failure (`Controller.confirm`). Any other
+  timeout says "The speaker did not answer. Try again."; timeouts and Sonos error codes are logged at debug level,
+  not as tracebacks.
+- A URL typed as a browser shows it (Cyrillic path, IDN host) reaches the speaker percent-encoded and in IDNA; a
+  404 or 500 has its own message; Opus served as `audio/ogg` goes to FFmpeg at once instead of after twelve seconds.
+- A Move 2 just switched on reports battery level 0 from `UNKNOWN_powerSource`: read as unread, not as empty.
+- Sonos refuses a second alarm with the same room, time and repeat with error 801; it is said in words. The alarm
+  list says the repeat in the dialog's words, not `ON_135`. S with a timer running opens on what is left of it.
+- One file played with Control+F is named ("Playing 01-silence"), not counted ("Playing 1 files."). F2 keeps a
+  name to 160 characters, like a station's name.
+- The scripts and the fuzzer that found these live outside the repository; they drive `Session(network="real")`
+  with a watchdog that puts any playing speaker above 2 percent back to 1.
+
 ## Local favorites and history
 
 `library.py` keeps both lists in `sonosController-library.json` in NVDA's configuration folder

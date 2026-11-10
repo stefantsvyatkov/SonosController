@@ -23,6 +23,40 @@ class LocalFileTests(unittest.TestCase):
         self.file = self.root / "track 2.mp3"
         self.file.write_bytes(b"0123456789")
 
+    def test_one_file_is_named_and_several_are_counted(self):
+        class Server:
+            def forget_all(self):
+                pass
+
+            def register(self, path):
+                return "http://192.0.2.9:1/" + Path(path).name, "audio/mpeg"
+
+            def was_requested(self, url):
+                return True
+
+        class Player:
+            def __init__(self):
+                self.group = SimpleNamespace(coordinator=self)
+
+            def clear_queue(self):
+                pass
+
+            def add_multiple_to_queue(self, items):
+                pass
+
+            def play_from_queue(self, index):
+                pass
+
+            def get_current_transport_info(self):
+                return {"current_transport_state": "PLAYING"}
+
+        player = localfiles.LocalFiles()
+        self.addCleanup(player.close)
+        (self.root / "track 10.mp3").write_bytes(b"audio")
+        with patch.object(player, "server_for", return_value=Server()):
+            self.assertEqual(player.play(Player(), {"path": str(self.file)}), "Playing track 2")
+            self.assertEqual(player.play(Player(), {"path": str(self.root)}), "Playing 2 files.")
+
     def test_folder_order_filter_and_optional_subfolders(self):
         (self.root / "track 10.mp3").write_bytes(b"audio")
         (self.root / "track 1.mp3").write_bytes(b"audio")

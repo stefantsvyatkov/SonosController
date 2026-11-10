@@ -1,8 +1,10 @@
 """Local Sonos operations, called exclusively from the worker thread."""
 
+import time
+
 from .i18n import _
-from .media import describe, seconds
-from .util import PAGE_STEP, timestamp, transient
+from .media import describe, seconds, spoken
+from .util import PAGE_STEP, PLAYING, timestamp, transient
 
 #: How much each volume key changes the group volume.
 VOLUME_STEPS = {"up": 1, "down": -1, "pageUp": PAGE_STEP, "pageDown": -PAGE_STEP}
@@ -110,16 +112,12 @@ class Controller:
         if action == "copyTrack":
             track = player.get_current_track_info()
             uri = track.get("uri", "").lower()
-            title = str(track.get("title") or "").strip()
-            if (uri.startswith(("x-sonos-htastream:", "x-rincon-stream:"))
-                    or title in ("", "NOT_IMPLEMENTED")):
+            title, artist = spoken(track.get("title")), spoken(track.get("artist"))
+            if uri.startswith(("x-sonos-htastream:", "x-rincon-stream:")) or not title:
                 return _("Track information cannot be copied.")
-            if (uri.startswith(("x-sonosapi-stream:", "x-sonosapi-radio:", "x-rincon-mp3radio:"))
-                    and not track.get("artist")):
+            if uri.startswith(("x-sonosapi-stream:", "x-sonosapi-radio:", "x-rincon-mp3radio:")) and not artist:
                 return _("Track information cannot be copied.")
-            text = " — ".join(str(track.get(k) or "").strip()
-                              for k in ("title", "artist") if track.get(k))
-            return {"copy": text}
+            return {"copy": " — ".join(v for v in (title, artist) if v)}
         if action in ("seekBack", "seekForward"):
             track = player.get_current_track_info()
             position, duration = seconds(track.get("position")), seconds(track.get("duration"))
@@ -154,6 +152,11 @@ class Controller:
                         continue
                     raise
                 level = info.get("Level")
+                # A Move 2 just switched on reports level 0 from an unknown
+                # power source: no reading yet, not an empty battery.
+                if str(info.get("PowerSource", "")).upper().startswith("UNKNOWN"):
+                    unread = True
+                    continue
                 if level is not None:
                     power = str(info.get("PowerSource", "")).replace("_", " ").lower()
                     report = (_("{room}, battery {level} percent, power source {source}") if power
@@ -178,17 +181,20 @@ class Controller:
                 raise
         if action == "playPause":
             actions = self.transport_actions(player)
-            if player.get_current_transport_info()["current_transport_state"] == "PLAYING":
+            # A stream still buffering counts as playing: Space then stops it,
+            # where saying "Play" again would leave it starting.
+            state = player.get_current_transport_info()["current_transport_state"]
+            if state in PLAYING:
                 if "Pause" not in actions:
                     if "Stop" not in actions:
                         return _("Pause and stop unavailable.")
-                    player.stop()
+                    self.confirm(player, player.stop, ("STOPPED",))
                     return _("Stopped")
-                player.pause()
+                self.confirm(player, player.pause, ("PAUSED_PLAYBACK", "STOPPED"))
                 return _("Pause")
             if "Play" not in actions:
                 return _("Nothing to play. Select music in the Sonos app.")
-            player.play()
+            self.confirm(player, player.play, PLAYING)
             return _("Play")
         if action in ("previous", "next"):
             if action.capitalize() not in self.transport_actions(player):
@@ -202,15 +208,31 @@ class Controller:
             return _("Previous track") if action == "previous" else _("Next track")
         if action == "playing":
             track = player.get_current_track_info()
-            if not track.get("title"):
-                try:
-                    extra = player.avTransport.GetMediaInfo([("InstanceID", 0)])
-                    track = dict(track, **extra)
-                except Exception:
-                    pass
+            # The source holds a station's name; the track only what it plays now.
+            try:
+                media = player.avTransport.GetMediaInfo([("InstanceID", 0)])
+            except Exception:
+                media = {}
             state = player.get_current_transport_info()["current_transport_state"]
-            return describe(track, state.replace("_", " ").lower())
+            return describe(track, state.replace("_", " ").lower(), media)
         raise ValueError(_("This Sonos command is unavailable."))
+
+    @staticmethod
+    def confirm(player, command, wanted):
+        """Send a transport command; a slow answer counts if the speaker obeyed.
+
+        A room just taken out of a group took over three seconds to answer
+        Play on the owner's speakers, and played anyway.  Saying "Command
+        failed" then would have the user press Space again and stop it.
+        """
+        try:
+            command()
+        except Exception as error:
+            if not transient(error):
+                raise
+            time.sleep(0.5)
+            if player.get_current_transport_info()["current_transport_state"] not in wanted:
+                raise
 
     def fixed_rooms(self, group):
         names = []

@@ -112,7 +112,8 @@ class Menus(EmulatorTest):
         heard = session.press("kb:a")[-1]
         self.assertIn("07:30", heard)
         self.assertIn("Living Room", heard)
-        self.assertIn("WEEKDAYS", heard)
+        self.assertIn("Weekdays", heard)
+        self.assertNotIn("WEEKDAYS", heard, "Sonos's code is not what the dialog calls it")
 
     def test_space_toggles_an_alarm(self):
         session = self.layer()
@@ -163,6 +164,13 @@ class Errors(EmulatorTest):
         session = self.layer(household=house)
         house.fail("GetPositionInfo", OSError("unreachable"))
         self.assertEqual(session.press("kb:p")[-1], "Command failed. Try again.")
+
+    def test_a_speaker_that_does_not_answer_is_said_and_not_logged_as_a_fault(self):
+        house = default_household()
+        session = self.layer(household=house)
+        house.fail("GetPositionInfo", TimeoutError("timed out"))
+        self.assertEqual(session.press("kb:p")[-1], "The speaker did not answer. Try again.")
+        self.assertFalse([r for r in session.log.records if r[0] == "exception"])
 
     def test_no_rooms_is_explained(self):
         house = default_household()

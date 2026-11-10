@@ -1,6 +1,7 @@
 """Cancellable transfer between standalone rooms (including stereo pairs)."""
 
 from .i18n import _
+from .util import PLAYING
 
 
 class Transfer:
@@ -10,7 +11,7 @@ class Transfer:
         self.source = controller.current().coordinator
         if len(controller.members(self.source.group)) != 1:
             raise RuntimeError(_("Select a room that is not grouped."))
-        if self.source.get_current_transport_info()["current_transport_state"] != "PLAYING":
+        if self.source.get_current_transport_info()["current_transport_state"] not in PLAYING:
             raise RuntimeError(_("Source is not playing."))
         self.description = controller.execute("playing")
         self.targets = []

@@ -5,6 +5,7 @@ from support import load
 
 media = load("media")
 describe, source_name, seconds = media.describe, media.source_name, media.seconds
+readable = load("util").readable
 Settings = load("settings").Settings
 
 
@@ -25,6 +26,50 @@ class MediaTests(unittest.TestCase):
         self.assertIn("unavailable", describe({"metadata": "NOT_IMPLEMENTED"}, "STOPPED"))
         self.assertIsNone(seconds("NOT_IMPLEMENTED"))
         self.assertIsNone(seconds("0:99:00"))
+
+    def test_a_playing_station_is_named_without_its_stream_file(self):
+        """What two of the owner's speakers reported on 10 November 2026."""
+        def didl(body):
+            return ('<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                    'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                    f'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item>{body}</item></DIDL-Lite>')
+
+        def station(name, uri):
+            return {"CurrentURI": uri, "CurrentURIMetaData": didl(f"<dc:title>{name}</dc:title>")}
+
+        stream = "aac://https://25703.live.streamtheworld.com:443/RADIO_ENERGYAAC_H.aac?dist=TUNEIN"
+        track = {"title": "DIGIDI DIGIDI", "artist": "DJ.ILHAM", "uri": stream, "metadata": didl(
+            "<r:streamContent>DJ.ILHAM - DIGIDI DIGIDI</r:streamContent>"
+            "<dc:title>RADIO_ENERGYAAC_H.aac?dist=TUNEIN</dc:title>")}
+        self.assertEqual(
+            describe(track, "playing", station("Radio Energy", "x-sonosapi-stream:tunein%3a17501?sid=303")),
+            "Internet radio, Radio Energy, DIGIDI DIGIDI, DJ.ILHAM, playing")
+        stream = "hls-radio://https://bss1.neterra.tv/thevoicefm/thevoicefm.m3u8"
+        track = {"title": "", "artist": "", "uri": stream, "metadata": didl(
+            "<r:streamContent></r:streamContent><dc:title>thevoicefm.m3u8</dc:title>")}
+        self.assertEqual(
+            describe(track, "playing", station("The Voice Radio", "x-sonosapi-stream:r%3a414762?sid=268")),
+            "Internet radio, The Voice Radio, playing")
+
+    def test_what_a_speaker_reports_while_connecting_or_mangled_is_cleaned(self):
+        """The owner's Play, given a stream named in UTF-8 and one in Windows-1251."""
+        mangled = "Тестово радио  с   интервали".encode("utf-8").decode("latin-1")
+        stream = "x-rincon-mp3radio://http://192.0.2.1/stream.mp3"
+        media = {"CurrentURI": stream, "CurrentURIMetaData":
+                 '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/"><item>'
+                 '<dc:title>Тестово радио с интервали</dc:title></item></DIDL-Lite>'}
+        self.assertEqual(describe({"title": mangled, "uri": stream}, "playing", media),
+                         "Internet radio, Тестово радио с интервали, playing")
+        self.assertEqual(describe({"title": "ZPSTR_BUFFERING", "uri": stream}, "transitioning", media),
+                         "Internet radio, Тестово радио с интервали, transitioning")
+        self.assertEqual(readable("Радио Тест 1251".encode("cp1251").decode("latin-1")), "Радио Тест 1251")
+        for text in ("Café FM", "Müller Radio", "Radio 1", "Радио 1"):
+            self.assertEqual(readable(text), text)
+
+    def test_a_queue_track_keeps_its_own_source_and_title(self):
+        track = {"title": "01-silence.mp3", "uri": "http://192.168.0.2:4100/a1b2/01-silence.mp3"}
+        self.assertEqual(describe(track, "playing", {"CurrentURI": "x-rincon-queue:RINCON_1#0"}),
+                         "Network audio, 01-silence.mp3, playing")
 
     def test_seek_and_limits(self):
         p = Player("a", "Room")

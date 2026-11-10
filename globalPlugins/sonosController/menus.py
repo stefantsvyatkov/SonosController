@@ -214,7 +214,8 @@ class SleepTimer:
         self.player = controller.current().coordinator
         remaining = self.player.get_sleep_timer()
         self.custom = max(1, min(90, round((remaining or 300) / 60)))
-        self.row = 0
+        # A running timer opens on what is left of it, not on "Timer off".
+        self.row = 1 if remaining else 0
         self.index = 0
         self.values = [0] + list(range(5, 91, 5))
 
@@ -283,6 +284,31 @@ def parse_alarm(data):
                 include_linked_zones=data["linked"], play_mode=data["play_mode"])
 
 
+def repeat_name(recurrence):
+    """An alarm's repeat in the alarm dialog's words, not Sonos's code ("ON_135")."""
+    names = {"ONCE": _("Once"), "DAILY": _("Every day"), "WEEKDAYS": _("Weekdays"),
+             "WEEKENDS": _("Weekends")}
+    if recurrence in names:
+        return names[recurrence]
+    if recurrence.startswith("ON_") and recurrence[3:].isdigit():
+        days = [_("Sunday"), _("Monday"), _("Tuesday"), _("Wednesday"),
+                _("Thursday"), _("Friday"), _("Saturday")]
+        # In the dialog's order, which is Sonos's: Sunday is 0.
+        return ", ".join(days[int(day)] for day in sorted(set(recurrence[3:])) if int(day) < 7)
+    return recurrence
+
+
+def save_alarm(alarm):
+    """Save, saying in words why Sonos refused a second alarm like one it has."""
+    try:
+        alarm.save()
+    except Exception as error:
+        # 801: the room already has an alarm at that time with that repeat.
+        if str(getattr(error, "error_code", "")) == "801":
+            raise RuntimeError(_("This room already has an alarm at that time.")) from error
+        raise
+
+
 class AlarmMenu:
     def __init__(self, controller):
         Alarms = vendors.soco_submodule("alarms").Alarms
@@ -321,7 +347,7 @@ class AlarmMenu:
             return _("New alarm")
         room = alarm.zone.player_name if alarm.zone else _("Room unavailable")
         state = _("on") if alarm.enabled else _("off")
-        return f"{alarm.start_time:%H:%M}, {room}, {state}, {alarm.recurrence}"
+        return f"{alarm.start_time:%H:%M}, {room}, {state}, {repeat_name(alarm.recurrence)}"
 
     def move(self, delta):
         self.index = (self.index + delta) % (len(self.items) + 1)
@@ -334,7 +360,7 @@ class AlarmMenu:
         old = alarm.enabled
         try:
             alarm.enabled = not old
-            alarm.save()
+            save_alarm(alarm)
         except Exception:
             alarm.enabled = old
             raise
@@ -381,7 +407,7 @@ class AlarmMenu:
         elif old is None:
             values.update(program_uri=None, program_metadata="")
         alarm.update(**values)
-        alarm.save()
+        save_alarm(alarm)
         self.reload()
         return _("Alarm saved.")
 

@@ -26,7 +26,7 @@ from .playbacksettings import PlaybackSettings
 from .relayhooks import NeedsFFmpeg, Relay
 from .settings import Settings
 from .transfer import Transfer
-from .util import PAGE_STEP, valid_url
+from .util import PAGE_STEP, transient, valid_url
 from . import vendors
 
 CONFIG_SECTION = "sonosController"
@@ -338,8 +338,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 # condition, not a fault. NVDA's log is what users are asked to
                 # send to developers, so filling it with tracebacks for "No
                 # Sonos rooms found." would bury the faults that matter.
+                # A speaker that did not answer in time is weather, not a fault,
+                # and one that refused with its own error code said why.
+                code = getattr(error, "error_code", None)
+                silent = transient(error) and code is None
                 if isinstance(error, (RuntimeError, ValueError)) and str(error):
                     log.debug("Sonos: %s", error)
+                elif silent or code is not None:
+                    log.debug("Sonos: %s", error, exc_info=True)
                 else:
                     log.exception("Sonos operation failed")
                 if action in ("settingsStart", "playbackSettingsStart",
@@ -355,12 +361,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     grouping = None
                     wx.CallAfter(self._finishMode, generation)
                 # A rejected playback command does not invalidate discovered rooms.
-                code = getattr(error, "error_code", None)
                 if code is not None:
                     message = _("Command unavailable. Sonos error {code}.").format(code=code)
+                elif isinstance(error, (RuntimeError, ValueError)):
+                    message = str(error)
                 else:
-                    message = (str(error) if isinstance(error, (RuntimeError, ValueError))
-                               else _("Command failed. Try again."))
+                    message = _("The speaker did not answer. Try again.") if silent else _("Command failed. Try again.")
             if isinstance(message, dict) and "copy" in message:
                 wx.CallAfter(self._copyTrack, generation, message["copy"])
             elif message:

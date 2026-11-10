@@ -179,6 +179,13 @@ class Renaming(LibraryTest):
         self.assertEqual(dialog.title, "Rename")
         self.assertEqual(self.stored()["favorites"][0]["title"], "My station")
 
+    def test_a_pasted_page_is_cut_to_a_name(self):
+        self.play_station()
+        self.press("kb:h")
+        self.session.responder.text_answer = "x" * 2000
+        self.press("kb:f2")
+        self.assertEqual(len(self.stored()["history"][0]["title"]), library.TITLE_SIZE)
+
     def test_an_unchanged_name_is_said(self):
         self.play_station()
         self.press("kb:h")

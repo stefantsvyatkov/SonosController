@@ -125,6 +125,32 @@ class ControllerTests(unittest.TestCase):
         self.controller.selected = "move"
         self.assertEqual(self.controller.execute("battery"), "Move, battery 98 percent, power source battery")
 
+    def test_a_slow_answer_counts_when_the_speaker_obeyed(self):
+        """Living Room took over three seconds to answer Play, and played; 10 November 2026."""
+        class Slow:
+            state = "STOPPED"
+
+            def play(self):
+                self.state = "TRANSITIONING"
+                raise TimeoutError("timed out")
+
+            def get_current_transport_info(self):
+                return {"current_transport_state": self.state}
+
+        player = Slow()
+        backend.Controller.confirm(player, player.play, ("PLAYING", "TRANSITIONING"))
+        player.play = lambda: (_ for _ in ()).throw(TimeoutError("timed out"))
+        player.state = "STOPPED"
+        with self.assertRaises(TimeoutError):
+            backend.Controller.confirm(player, player.play, ("PLAYING", "TRANSITIONING"))
+
+    def test_a_battery_not_read_yet_is_not_empty(self):
+        """The owner's Move 2 just switched on, 10 November 2026."""
+        self.move.get_battery_info = lambda timeout: {
+            "Health": "UNKNOWN", "Level": 0, "Temperature": "VERY_COLD", "PowerSource": "UNKNOWN_powerSource"}
+        self.controller.selected = "move"
+        self.assertEqual(self.controller.execute("battery"), "Could not read battery level.")
+
     def test_nonportable_battery(self):
         class NotSupportedException(Exception):
             pass

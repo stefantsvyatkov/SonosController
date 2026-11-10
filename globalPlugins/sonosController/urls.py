@@ -2,11 +2,11 @@
 from dataclasses import dataclass
 import os
 import time
-from urllib.parse import urljoin, urlsplit, urlunsplit, unquote
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit, unquote
 from xml.etree import ElementTree as ET
 from .i18n import _
 from .playback import source_identity
-from .util import Played, transient, valid_url
+from .util import Played, readable, transient, valid_url
 from . import vendors
 
 
@@ -111,7 +111,22 @@ def clean_url(url):
         raise RuntimeError(_("Invalid port in URL.")) from error
     if port is not None and not 1 <= port <= 65535:
         raise RuntimeError(_("Invalid port in URL."))
-    return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path, parts.query, ""))
+    # A browser shows "https://радио.бг/поток.mp3" as typed, but a speaker
+    # takes only ASCII: the host in IDNA, the rest percent-encoded.  Escapes
+    # already there are kept.
+    netloc = parts.netloc
+    if not netloc.isascii():
+        try:
+            host = parts.hostname.encode("idna").decode("ascii")
+        except UnicodeError as error:
+            raise RuntimeError(_("Enter an HTTP or HTTPS audio URL.")) from error
+        netloc = host if port is None else f"{host}:{port}"
+    return urlunsplit((parts.scheme.lower(), netloc, quote(parts.path, safe=URL_SAFE),
+                       quote(parts.query, safe=URL_SAFE), ""))
+
+
+#: What a URL may carry unescaped; "%" keeps the escapes it already has.
+URL_SAFE = "/%:@!$&'()*+,;=-._~?[]"
 
 
 def resolve_audio(url, get=None, cancelled=lambda: False):
@@ -160,7 +175,10 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
                 return resolve(target, depth + 1, visited)
             if status in (401, 403):
                 raise RuntimeError(_("This audio URL requires authorization."))
-            response.raise_for_status()
+            if status in (404, 410):
+                raise RuntimeError(_("The audio URL was not found."))
+            if status >= 400:
+                raise RuntimeError(_("The audio URL answered with error {code}.").format(code=status))
             mime = headers.get("content-type", "").split(";", 1)[0].strip().lower()
             path = urlsplit(address).path.lower()
             extension = os.path.splitext(path)[1]
@@ -211,6 +229,10 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
                 raise RuntimeError(_("Playlist contains no reachable audio URL.")) from last_error
             if mime and not (mime.startswith("audio/") or mime in ("application/ogg", "application/octet-stream", "binary/octet-stream")):
                 raise RuntimeError(_("The URL does not return audio."))
+            # An Ogg stream may be Opus, which no speaker plays: knowing it now
+            # spares twelve seconds of waiting for the speaker to give up.
+            if mime == "audio/ogg" and b"OpusHead" in next(response.iter_content(512), b""):
+                mime = "audio/opus"
             # Unknown MIME types need a small bounded sniff, not a whole stream download.
             if mime in ("", "application/octet-stream", "binary/octet-stream", "application/ogg"):
                 sample = next(response.iter_content(512), b"")
@@ -230,7 +252,7 @@ def resolve_audio(url, get=None, cancelled=lambda: False):
                 elif mime != "application/ogg":
                     mime = FILE_MIME.get(extension, "audio/mpeg")
             radio = any(k.startswith("icy-") for k in headers) or (mime.startswith("audio/") and "content-length" not in headers)
-            title = headers.get("icy-name", "").strip() or unquote(os.path.basename(urlsplit(address).path)) or _("Internet audio")
+            title = readable(headers.get("icy-name", "")).strip() or unquote(os.path.basename(urlsplit(address).path)) or _("Internet audio")
             title = " ".join(title.split())[:160]
             return AudioSource(address, "radio" if radio else "file", mime or FILE_MIME.get(extension, "audio/mpeg"), title)
 

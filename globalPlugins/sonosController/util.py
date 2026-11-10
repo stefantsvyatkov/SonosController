@@ -2,6 +2,11 @@
 
 from urllib.parse import urlsplit
 
+#: A station still buffering is playing as far as the listener is concerned:
+#: radio takes seconds to start, and a room that has just been given music
+#: must not be refused as silent.
+PLAYING = ("PLAYING", "TRANSITIONING")
+
 #: How far Page Up and Page Down move any value the arrows step by one.
 #: Volume is in percent, so this is five percentage points there.
 PAGE_STEP = 5
@@ -30,6 +35,31 @@ class Played(str):
         value = super().__new__(cls, message)
         value.name = name
         return value
+
+
+def readable(text):
+    """Text a station sent as bytes in its own encoding, read back as it was meant.
+
+    HTTP headers, and a speaker reporting a stream's name, take those bytes as
+    Latin-1: "Радио" in UTF-8 becomes "Ð Ð°Ð´Ð¸Ð¾", and in Windows-1251, which
+    older Bulgarian stations still send, "Ðàäèî".
+    """
+    try:
+        raw = text.encode("latin-1")
+    except UnicodeEncodeError:
+        return text
+    if raw.isascii():
+        return text
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    # Windows-1251 only when most letters were mangled, so "Café" stays.
+    letters = [c for c in text if c.isalpha()]
+    mangled = [c for c in letters if not c.isascii()]
+    if len(mangled) >= 3 and len(mangled) * 2 > len(letters):
+        return raw.decode("cp1251", errors="replace")
+    return text
 
 
 def timestamp(total):

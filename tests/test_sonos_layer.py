@@ -40,7 +40,7 @@ class LayerTests(unittest.TestCase):
                 normalizeGestureIdentifier=lambda key: key.lower()),
             "ui": SimpleNamespace(message=self.messages.append),
             "wx": SimpleNamespace(CallAfter=lambda function, *args: function(*args)),
-            "logHandler": SimpleNamespace(log=SimpleNamespace(exception=lambda text: None)),
+            "logHandler": SimpleNamespace(log=SimpleNamespace(exception=lambda *a, **k: None, debug=lambda *a, **k: None)),
             "scriptHandler": SimpleNamespace(script=lambda **kwargs: lambda function: function),
         }
         self.patcher = patch.dict(sys.modules, modules)

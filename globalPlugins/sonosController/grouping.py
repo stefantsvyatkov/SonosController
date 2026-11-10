@@ -3,6 +3,7 @@
 import time
 
 from .i18n import _
+from .util import PLAYING
 
 # Spoken whenever a cancellation lands between two speaker requests.
 PARTIAL = _("Cancelled. Some changes may remain.")
@@ -57,7 +58,7 @@ def break_up(controller, cancelled):
     others = [p for p in controller.members(source.group) if p.uid != source.uid]
     if not others:
         return _("{room} is not grouped.").format(room=source.player_name)
-    playing = source.get_current_transport_info()["current_transport_state"] == "PLAYING"
+    playing = source.get_current_transport_info()["current_transport_state"] in PLAYING
     changed = False
     try:
         for room in others:
@@ -82,7 +83,7 @@ class Grouping:
         self.controller = controller
         self.cancelled = cancelled
         self.source = controller.current().coordinator
-        if self.source.get_current_transport_info()["current_transport_state"] != "PLAYING":
+        if self.source.get_current_transport_info()["current_transport_state"] not in PLAYING:
             raise RuntimeError(_("Select a room that is playing."))
         self.rooms = list(controller.rooms)
         self.refresh(self.source)

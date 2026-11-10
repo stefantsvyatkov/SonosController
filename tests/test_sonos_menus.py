@@ -79,6 +79,11 @@ class MenuTests(unittest.TestCase):
         menu.apply()
         self.assertIsNone(self.calls[-1])
 
+    def test_a_running_timer_opens_on_what_is_left(self):
+        """S used to open on "Timer off" with two minutes left; 10 November 2026."""
+        self.player.get_sleep_timer = lambda: 118
+        self.assertEqual(SleepTimer(self.controller).describe(), "Custom, 2 minutes.")
+
     def test_timer_values_are_bounded_to_ninety_minutes(self):
         self.player.get_sleep_timer = lambda: None
         menu = SleepTimer(self.controller)
@@ -125,6 +130,14 @@ class FakeAlarm:
 
     def remove(self):
         self.removed = True
+
+
+class RepeatNames(unittest.TestCase):
+    def test_the_list_uses_the_dialogs_words(self):
+        for code, name in (("ONCE", "Once"), ("DAILY", "Every day"), ("WEEKDAYS", "Weekdays"),
+                           ("WEEKENDS", "Weekends"), ("ON_135", "Monday, Wednesday, Friday"),
+                           ("ON_60", "Sunday, Saturday"), ("SOMETHING", "SOMETHING")):
+            self.assertEqual(menus.repeat_name(code), name)
 
 
 class AlarmTests(unittest.TestCase):
@@ -194,6 +207,19 @@ class AlarmTests(unittest.TestCase):
         def fail(): raise OSError("unreachable")
         self.alarm.save = fail
         with self.assertRaises(OSError):
+            self.menu.toggle()
+        self.assertTrue(self.alarm.enabled)
+
+    def test_a_second_alarm_like_one_already_there_is_said_in_words(self):
+        """Sonos answers 801; the owner's Play, 10 November 2026."""
+        class Duplicate(Exception):
+            error_code = "801"
+
+        def refuse():
+            raise Duplicate()
+
+        self.alarm.save = refuse
+        with self.assertRaisesRegex(RuntimeError, "already has an alarm at that time"):
             self.menu.toggle()
         self.assertTrue(self.alarm.enabled)
 

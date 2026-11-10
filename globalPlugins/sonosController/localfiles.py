@@ -226,6 +226,8 @@ class LocalFiles:
                     return ""
                 state = player.get_current_transport_info()
                 if state.get("current_transport_state") == "PLAYING" and server.was_requested(items[0].resources[0].uri):
+                    if len(items) == 1:
+                        return _("Playing {title}").format(title=items[0].title)
                     return _("Playing {count} files.").format(count=len(items))
                 time.sleep(0.5)
             return _("Files added to the queue. Playback not confirmed. Check the firewall and audio format.")
