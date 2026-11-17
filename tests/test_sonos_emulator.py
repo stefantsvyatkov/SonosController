@@ -635,10 +635,12 @@ class Cost(EmulatorTest):
 
     def test_a_folder_costs_one_request_per_batch(self):
         import os
+        import shutil
         import tempfile
         house = default_household()
         session = self.layer(household=house)
         folder = tempfile.mkdtemp(prefix="sonos-emu-")
+        self.addCleanup(shutil.rmtree, folder, True)
         for index in range(32):
             with open(os.path.join(folder, f"track {index:02d}.mp3"), "wb") as handle:
                 handle.write(bytes([0xFF, 0xFB]) + bytes(400))

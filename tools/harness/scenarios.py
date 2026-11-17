@@ -144,6 +144,7 @@ def settings_round_trips():
 def local_files_round_trips():
     import tempfile
     import os
+    import shutil
     house = default_household(latency=0.01)
     session = Session(household=house)
     session.press("kb:NVDA+shift+control+s")
@@ -171,6 +172,7 @@ def local_files_round_trips():
     print("\n  verdict: tracks are queued sixteen at a time, so the documented"
           "\n           1000-file limit is about 63 requests, not 1000.")
     session.close()
+    shutil.rmtree(folder, ignore_errors=True)
 
 
 @scenario("Unload: NVDA is never held up waiting for a speaker")
