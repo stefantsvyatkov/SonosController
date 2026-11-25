@@ -4,6 +4,10 @@ An NVDA global plugin (NVDA 2026.2+, Python 3.13) that controls Sonos speakers o
 persistent keyboard layer. The user guide is `doc/en/readme.html`; it is written by hand and holds only what users
 need. Everything about building and testing is here.
 
+The guide has the look every app's documentation shares (the owner, 25 November 2026; BST Radio's
+`Windows\shared\README.md`, "Documentation pages"): `color-scheme: light dark`, so it follows Windows' light or dark
+theme, Verdana at 1.2rem, centred headings, and no colour or background of its own.
+
 ## Layout
 
 | Path | What it holds |
